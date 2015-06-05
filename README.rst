@@ -30,6 +30,16 @@ those are much harder to understand and merge.
 Follow https://help.github.com/articles/fork-a-repo to to learn how to use
 `fetch` and `push` as well as other help on using git.
 
+Preparing the dev environment
+=============================
+This fork of the askbot code base includes a [Vagrant](https://www.vagrantup.com/) definition for use in development. To setup the Vagrant instance, run the following commands
+ 1. from the root of the code base, run `vagrant up` (will start and setup the VM, this may take a few minutes)
+ 2. once this is complete, run `vagrant ssh` (this will get you inside the VM)
+ 3. once inside, run `sudo setup-askbot` (this will setup the initial askbot config and run any outstanding migrations, once again, this may take a few minutes)
+ 4. once that is complete, you can run `run-askbot` to start the server
+
+For more information on Vagrant and the typical Vagrant workflow, see its [documentation](https://docs.vagrantup.com/v2/).
+
 License, copyright and trademarks
 =================================
 Askbot software is licensed under GPL, version 3.

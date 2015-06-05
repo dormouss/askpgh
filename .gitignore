@@ -2,7 +2,6 @@
 *.swp
 *.log
 *~
-db
 rebuild-locales.pl
 /src
 /static
@@ -18,7 +17,6 @@ settings.py
 lint
 env
 .vagrant
-/Vagrantfile
 /custom_settings
 /static
 django

@@ -1,0 +1,16 @@
+# create a database for the environment
+
+class db::create {
+  # Create the database
+  exec { 'create-database':
+    unless  => '/usr/bin/mysql -u root -pvagrant rrga_rga',
+    command => '/usr/bin/mysql -u root -pvagrant --execute=\'create database rrga_rga\'',
+  }
+
+  # Create the database user
+  exec { 'create-user':
+    unless  => '/usr/bin/mysql -u rrga -prrga rrga_rga',
+    command => '/usr/bin/mysql -u root -pvagrant --execute="GRANT ALL PRIVILEGES ON rrga_rga.* TO \'rrga\'@\'%\' IDENTIFIED BY \'rrga\'"',
+  }
+
+}
