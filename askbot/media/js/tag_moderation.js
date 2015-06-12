@@ -3,31 +3,31 @@
  * base class for two tag moderators - per thread
  * and per tag
  */
-var TagModerator = function() {
+var TagModerator = function () {
     WrappedElement.call(this);
     this._tagId = undefined;
     this._threadId = undefined;
 };
 inherits(TagModerator, WrappedElement);
 
-TagModerator.prototype.setTagId = function(id) {
+TagModerator.prototype.setTagId = function (id) {
     this._tagId = id;
 };
 
-TagModerator.prototype.getTagId = function() {
+TagModerator.prototype.getTagId = function () {
     return this._tagId;
 };
 
-TagModerator.prototype.setThreadId = function(id) {
+TagModerator.prototype.setThreadId = function (id) {
     this._threadId = id;
 };
 
-TagModerator.prototype.getThreadId = function() {
+TagModerator.prototype.getThreadId = function () {
     return this._threadId;
 };
 
-TagModerator.prototype.afterActionHandler = function() {
-    throw "Implement me";
+TagModerator.prototype.afterActionHandler = function () {
+    throw 'Implement me';
 };
 
 /**
@@ -36,28 +36,28 @@ TagModerator.prototype.afterActionHandler = function() {
  * to the moderate tag url. thread id is added
  * as parameter to data, if defined.
  */
-TagModerator.prototype.getHandler = function(action) {
+TagModerator.prototype.getHandler = function (action) {
     var me = this;
-    return function() {
+    return function () {
         var data = {
             action: action,
             tag_id: me.getTagId()
         };
         if (me.getThreadId() !== undefined) {
-            data['thread_id'] = me.getThreadId();
+            data.thread_id = me.getThreadId();
         }
         $.ajax({
             type: 'POST',
             dataType: 'json',
-            url: askbot['urls']['moderateSuggestedTag'],
+            url: askbot.urls.moderateSuggestedTag,
             cache: false,
             data: data,
-            success: function(data) {
-                if (data['success']) {
+            success: function (data) {
+                if (data.success) {
                     $(me.getElement()).fadeOut();
                     me.afterActionHandler();
                 } else {
-                    showMessage($(me.getElement()), data['error']);
+                    showMessage($(me.getElement()), data.error);
                 }
             }
         });
@@ -66,7 +66,7 @@ TagModerator.prototype.getHandler = function(action) {
 /**
  * @constructor
  */
-var PerThreadTagModerator = function() {
+var PerThreadTagModerator = function () {
     TagModerator.call(this);
     this._tagId = undefined;
     this._threadId = undefined;
@@ -74,20 +74,20 @@ var PerThreadTagModerator = function() {
 };
 inherits(PerThreadTagModerator, TagModerator);
 
-PerThreadTagModerator.prototype.setParent = function(thing) {
+PerThreadTagModerator.prototype.setParent = function (thing) {
     this._parent = thing;
 };
 
-PerThreadTagModerator.prototype.afterActionHandler = function() {
+PerThreadTagModerator.prototype.afterActionHandler = function () {
     var ancestor = this._parent;
     ancestor.removeChild(this);
     var childCount = ancestor.getChildCount();
-    if (childCount == 1) {
+    if (childCount === 1) {
         ancestor.hideButtons();
         this.dispose();
-    } else if (childCount == 0) {
+    } else if (childCount === 0) {
         //this does not work with the fade-out of table rows...
-        /* var callback = function() {
+        /* var callback = function () {
             var table = $('.suggested-tags-table');
             if (table.find('tr.suggested-tag-row').length == 0) {
                 table.before($('<p>' + gettext('No suggested tags left') + '</p>'));
@@ -100,19 +100,19 @@ PerThreadTagModerator.prototype.afterActionHandler = function() {
     }
 };
 
-PerThreadTagModerator.prototype.decorate = function(element) {
+PerThreadTagModerator.prototype.decorate = function (element) {
     this._element = element;
     this._threadId = element.data('threadId');
 
     var acceptBtn = element.find('button.accept');
     var rejectBtn = element.find('button.reject');
 
-    var mouseEnterHandler = function() {
+    var mouseEnterHandler = function () {
         acceptBtn.fadeIn('fast');
         rejectBtn.fadeIn('fast');
         return false;
     };
-    var mouseLeaveHandler = function() {
+    var mouseLeaveHandler = function () {
         acceptBtn.stop().hide();
         rejectBtn.stop().hide();
         return false;
@@ -130,54 +130,54 @@ PerThreadTagModerator.prototype.decorate = function(element) {
 /**
  * @constructor
  */
-var AllThreadsTagModerator = function() {
+var AllThreadsTagModerator = function () {
     TagModerator.call(this);
     this._tag_entry_element = undefined;
     this._children = [];
 };
 inherits(AllThreadsTagModerator, TagModerator);
 
-AllThreadsTagModerator.prototype.addChild = function(child) {
+AllThreadsTagModerator.prototype.addChild = function (child) {
     this._children.push(child);
 };
 
-AllThreadsTagModerator.prototype.getChildCount = function() {
+AllThreadsTagModerator.prototype.getChildCount = function () {
     return this._children.length;
 };
 
-AllThreadsTagModerator.prototype.removeChild = function(child) {
+AllThreadsTagModerator.prototype.removeChild = function (child) {
     var idx = $.inArray(child, this._children);
-    if (idx == -1) {
+    if (idx === -1) {
         return;
     }
     this._children.splice(idx, 1);
 };
 
-AllThreadsTagModerator.prototype.hideButtons = function() {
+AllThreadsTagModerator.prototype.hideButtons = function () {
     this._acceptBtn.hide();
     this._rejectBtn.hide();
 };
 
-AllThreadsTagModerator.prototype.setTagEntryElement = function(element) {
+AllThreadsTagModerator.prototype.setTagEntryElement = function (element) {
     this._tag_entry_element = element;
 };
 
-AllThreadsTagModerator.prototype.afterActionHandler = function() {
+AllThreadsTagModerator.prototype.afterActionHandler = function () {
     var me = this;
     this._tag_entry_element.fadeOut('fast');
-    this._element.fadeOut('fast', function() { me.dispose() });
+    this._element.fadeOut('fast', function () { me.dispose(); });
 };
 
-AllThreadsTagModerator.prototype.dispose = function() {
-    var eventChain = this._tag_entry_element.fadeOut('fast', function() {
-        $.each(this._children, function(idx, child) {
+AllThreadsTagModerator.prototype.dispose = function () {
+    var eventChain = this._tag_entry_element.fadeOut('fast', function () {
+        $.each(this._children, function (idx, child) {
             child.dispose();
         });
     });
     AllThreadsTagModerator.superClass_.dispose.call(this);
 };
 
-AllThreadsTagModerator.prototype.decorate = function(element) {
+AllThreadsTagModerator.prototype.decorate = function (element) {
     this._element = element;
 
     //var controls = new TagModerationControls();
@@ -187,7 +187,7 @@ AllThreadsTagModerator.prototype.decorate = function(element) {
     //controls.setTagId(tagId);
 
     var threads_data = [];
-    $(element).find('.thread-info').each(function(idx, element) {
+    $(element).find('.thread-info').each(function (idx, element) {
         var id = $(element).data('threadId');
         var title = $(element).data('threadTitle');
         threads_data.push([id, title]);
@@ -200,8 +200,8 @@ AllThreadsTagModerator.prototype.decorate = function(element) {
     this._rejectBtn = rejectBtn;
 };
 
-(function() {
-    $('.suggested-tag-row').each(function(idx, element) {
+(function () {
+    $('.suggested-tag-row').each(function (idx, element) {
         var tagEntry = $(element);
         var tagId = tagEntry.data('tagId');
 
@@ -211,7 +211,7 @@ AllThreadsTagModerator.prototype.decorate = function(element) {
         tagMod.setTagId(tagId);
         tagMod.setTagEntryElement(tagEntry);
 
-        tagEntry.find('.thread-info').each(function(idx, element) {
+        tagEntry.find('.thread-info').each(function (idx, element) {
             var threadMod = new PerThreadTagModerator();
             threadMod.setTagId(tagId);
             threadMod.setParent(tagMod);

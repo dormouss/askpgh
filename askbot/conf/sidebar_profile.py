@@ -17,9 +17,10 @@ settings.register(
     values.LongStringValue(
         SIDEBAR_PROFILE,
         'SIDEBAR_PROFILE',
-        description = _('Custom sidebar'),
-        default = '',
-        help_text = _(
+        description=_('Custom sidebar'),
+        default='',
+        localized=True,
+        help_text=_(
                     'Use this area to enter content at the TOP of the sidebar'
                     'in HTML format.   When using this option '
                     '(as well as the sidebar footer), please '

@@ -160,8 +160,7 @@ Build the index according to language
 
 For every active language rebuild the index::
 
-    python manage.py askbot_rebuild_index -l <language_code>
-
+    python manage.py rebuild_index
 
 Keeping the search index fresh
 ==============================
@@ -171,8 +170,7 @@ There are several ways to keep the index fresh in askbot with haystack.
 Cronjob
 -------
 
-Create a cronjob that executes *askbot_update_index* command 
-for each of the activated languages.
+Create a cronjob that executes *update_index* command.
 
 Real Time Signal
 ----------------

@@ -38,7 +38,7 @@ def save_twitter_access_token(request):
     #todo: save message that user can also login via twitter
     return HttpResponseRedirect(request.user.get_profile_url())
 
-@csrf.csrf_exempt
+@csrf.csrf_protect
 @decorators.ajax_only
 @decorators.post_only
 def change_social_sharing_mode(request):

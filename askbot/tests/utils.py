@@ -4,7 +4,7 @@ from django.core.cache import cache
 from django.test import TestCase
 from functools import wraps
 from askbot import models
-from askbot.models import signals
+from askbot import signals
 
 def with_settings(**settings_dict):
     """a decorator that will run function with settings
@@ -160,17 +160,17 @@ class AskbotTestCase(TestCase):
 
     def post_question(
                     self,
-                    user = None,
-                    title = 'test question title',
-                    body_text = 'test question body text',
-                    tags = 'test',
-                    by_email = False,
-                    wiki = False,
-                    is_anonymous = False,
-                    is_private = False,
-                    group_id = None,
-                    follow = False,
-                    timestamp = None,
+                    user=None,
+                    title='test question title',
+                    body_text='test question body text',
+                    tags='test',
+                    by_email=False,
+                    wiki=False,
+                    is_anonymous=False,
+                    is_private=False,
+                    group_id=None,
+                    follow=False,
+                    timestamp=None,
                 ):
         """posts and returns question on behalf
         of user. If user is not given, it will be self.user
@@ -290,7 +290,7 @@ class AskbotTestCase(TestCase):
             except models.User.DoesNotExist:
                 user = self.create_user('tag_creator')
 
-        tag = models.Tag(created_by = user, name = tag_name)
+        tag = models.Tag(created_by=user, name=tag_name, language_code='en')
         tag.save()
         return tag
 

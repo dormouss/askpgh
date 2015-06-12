@@ -5,7 +5,6 @@ from askbot.tests.utils import AskbotTestCase
 from askbot import models
 from django.core.urlresolvers import reverse
 
-
 class PrivateQuestionViewsTests(AskbotTestCase):
 
     def setUp(self):

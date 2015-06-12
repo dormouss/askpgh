@@ -1,7 +1,7 @@
 TINYMCE_COMPRESSOR = True
 TINYMCE_SPELLCHECKER = False
-TINYMCE_JS_ROOT = os.path.join(STATIC_ROOT, 'default/media/js/tinymce/')
-TINYMCE_URL = STATIC_URL + 'default/media/js/tinymce/'
+TINYMCE_JS_ROOT = os.path.join(STATIC_ROOT, 'default/media/js/plugins/tinymce/')
+TINYMCE_URL = STATIC_URL + 'default/media/js/plugins/tinymce/'
 TINYMCE_DEFAULT_CONFIG = {
     'convert_urls': False,
     'plugins': 'askbot_imageuploader,askbot_attachment',

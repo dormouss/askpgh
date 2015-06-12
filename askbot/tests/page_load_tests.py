@@ -544,6 +544,11 @@ class PageLoadTestCase(AskbotTestCase):
             kwargs = {'id': 2, 'slug': name_slug},   # INFO: Hardcoded ID, might fail if DB allocates IDs in some non-continuous way
             template = 'user_profile/user_email_subscriptions.html'
         )
+        self.try_url(
+            'edit_user',
+            kwargs = {'id': 2},   # INFO: Hardcoded ID, might fail if DB allocates IDs in some non-continuous way
+            template = 'user_profile/user_edit.html'
+        )
         self.client.logout()
 
     def test_inbox_page(self):
@@ -563,7 +568,7 @@ class PageLoadTestCase(AskbotTestCase):
             'user_profile',
             kwargs={'id': asker.id, 'slug': slugify(asker.username)},
             data={'sort':'inbox'},
-            template='user_inbox/responses_and_flags.html',
+            template='user_inbox/responses.html',
         )
 
     @with_settings(GROUPS_ENABLED=True)
@@ -577,12 +582,11 @@ class PageLoadTestCase(AskbotTestCase):
 class AvatarTests(AskbotTestCase):
 
     def test_avatar_for_two_word_user_works(self):
-        if 'avatar' in settings.INSTALLED_APPS:
-            self.user = self.create_user('john doe')
-            response = self.client.get(
-                                'avatar_render_primary',
-                                kwargs = {'user': 'john doe', 'size': 48}
-                            )
+        self.user = self.create_user('john doe')
+        response = self.client.get(
+                            'avatar_render_primary',
+                            kwargs = {'user': 'john doe', 'size': 48}
+                        )
 
 
 class QuestionViewTests(AskbotTestCase):
@@ -735,9 +739,7 @@ class CommandViewTests(AskbotTestCase):
 
     def test_load_object_description_fails(self):
         response = self.client.get(reverse('load_object_description'))
-        soup = BeautifulSoup(response.content)
-        title = soup.find_all('h1')[0].contents[0].strip()
-        self.assertEqual(title, 'Page not found')
+        self.assertEqual(response.status_code, 404)
 
     def test_set_tag_filter_strategy(self):
         user = self.create_user('someuser')
@@ -774,7 +776,7 @@ class UserProfilePageTests(AskbotTestCase):
     def setUp(self):
         self.user = self.create_user('user')
 
-    @with_settings(EDITABLE_EMAIL=False)
+    @with_settings(EDITABLE_EMAIL=False, EDITABLE_SCREEN_NAME=True)
     def test_user_cannot_change_email(self):
         #log in
         self.client.login(user_id=self.user.id, method='force')
@@ -783,7 +785,8 @@ class UserProfilePageTests(AskbotTestCase):
             reverse('edit_user', kwargs={'id': self.user.id}),
             data={
                 'username': 'edited',
-                'email': 'fake@example.com'
+                'email': 'fake@example.com',
+                'country': 'unknown'
             }
         )
         self.assertEqual(response.status_code, 302)
@@ -791,7 +794,7 @@ class UserProfilePageTests(AskbotTestCase):
         self.assertEqual(user.username, 'edited')
         self.assertEqual(user.email, email_before)
 
-    @with_settings(EDITABLE_EMAIL=True)
+    @with_settings(EDITABLE_EMAIL=True, EDITABLE_SCREEN_NAME=True)
     def test_user_can_change_email(self):
         self.client.login(user_id=self.user.id, method='force')
         email_before = self.user.email
@@ -799,7 +802,8 @@ class UserProfilePageTests(AskbotTestCase):
             reverse('edit_user', kwargs={'id': self.user.id}),
             data={
                 'username': 'edited',
-                'email': 'new@example.com'
+                'email': 'new@example.com',
+                'country': 'unknown'
             }
         )
         self.assertEqual(response.status_code, 302)

@@ -7,7 +7,7 @@
 <!-- users.html -->
 {% block title %}{% spaceless %}{% trans %}Users{% endtrans %}{% endspaceless %}{% endblock %}
 {% block forestyle %}
-    <link rel="stylesheet" type="text/css" href="{{"/js/wmd/wmd.css"|media}}" />
+    <link rel="stylesheet" type="text/css" href="{{ '/wmd/wmd.css'|media }}" />
 {% endblock %}
 {% block content %}
 <div id="content-header">
@@ -23,7 +23,7 @@
         {#% if settings.GROUPS_ENABLED and user_groups %}
             <span class="label">{% trans %}Select/Sort by &raquo;{% endtrans %}</span>
             {% for a_group in user_groups %}
-                <a 
+                <a
                     href="{% url users_by_group group_id=a_group.id, group_slug=a_group.name|slugify %}"
                     {% if group.name == a_group.name  %}class="on"{% endif %}
                     title="{% trans name=a_group.name|escape %}people in group {{name}}{% endtrans %}"
@@ -33,29 +33,29 @@
             <span class="label">{% trans %}Sort by &raquo;{% endtrans %}</span>
         {#% endif %#}
             {% if settings.KARMA_MODE == 'public' %}
-            <a 
+            <a
                 id="sort_reputation"
                 href="{{ request.path|escape }}?sort=reputation"
                 {% if tab_id == 'reputation' %}class="on"{% endif %}
                 title="{% trans %}see people with the highest reputation{% endtrans %}"
             ><span>{% trans %}karma{% endtrans %}</span></a>
             {% endif %}
-            <a 
+            <a
                 id="sort_newest"
                 href="{{ request.path|escape }}?sort=newest"
                 {% if tab_id == 'newest' %}class="on"{% endif %}
                 class="off" title="{% trans %}see people who joined most recently{% endtrans %}"
             ><span>{% trans %}recent{% endtrans %}</span></a>
-            <a 
+            <a
                 id="sort_last"
                 href="{{ request.path|escape }}?sort=last"
                 {% if tab_id == 'last' %}class="on"{% endif %}
                 class="off" title="{% trans %}see people who joined the site first{% endtrans %}"
-            ><span>{% trans %}oldest{% endtrans %}<span></a>
-            <a 
+            ><span>{% trans %}oldest{% endtrans %}</span></a>
+            <a
                 id="sort_user"
-                href="{{ request.path|escape }}?sort=user"
-                {% if tab_id == 'user' %}class="on"{% endif %}
+                href="{{ request.path|escape }}?sort=name"
+                {% if tab_id == 'name' %}class="on"{% endif %}
                 title="{% trans %}see people sorted by name{% endtrans %}"
             ><span>{% trans %}by username{% endtrans %}</span></a>
         </div>
@@ -66,16 +66,12 @@
     <p>{% trans search_query=search_query|escape %}users matching query {{search_query}}:{% endtrans %}</p>
 {% endif %}
 {% if not users.object_list %}
-    <p><span>{% trans %}Nothing found.{% endtrans %}</span></p>
+    <p><span>{% trans %}No users found.{% endtrans %}</span></p>
 {% endif %}
-{{ macros.user_list(
-        users.object_list, 
-        karma_mode = settings.KARMA_MODE, badges_mode = settings.BADGES_MODE
-    )
-}}
+{{ macros.user_list(users.object_list) }}
 <div class="pager">
     {{ macros.paginator(paginator_context) }}
-</div>              
+</div>
 {% endblock %}
 {% block sidebar %}
     {% if group %}
@@ -84,7 +80,7 @@
     {% endif %}
 {% endblock %}
 {% block endjs %}
-    <script type='text/javascript'>
+    <script type="text/javascript">
         var Attacklab = Attacklab || {};
         Attacklab.wmd = 1;{# a trick to launch wmd manually #}
         askbot['urls']['upload'] = '{% url upload %}';
@@ -94,23 +90,21 @@
         askbot['urls']['delete_group_logo_url'] = '{% url delete_group_logo %}';
         askbot['urls']['join_or_leave_group'] = '{% url join_or_leave_group %}';
     </script>
-    <script type='text/javascript' src='{{"/js/editor.js"|media}}'></script>
+    {% compress js %}
+    <script type="text/javascript" src="{{ '/jslib/editor.js'|media }}"></script>
     {% include "meta/markdown_javascript.html" %}
-    <script type='text/javascript' src='{{"/js/jquery.validate.min.js"|media}}'></script>
-    <script src='{{"/js/post.js"|media}}' type='text/javascript'></script>
+    <script type="text/javascript" src="{{ '/jslib/jquery.validate.min.js'|media }}"></script>
+    <script type="text/javascript" src="{{ '/jslib/prettify.js'|media }}"></script>
+    <script type="text/javascript" src="{{ '/js/post.js'|media }}"></script>
+    {% endcompress %}
     <script type="text/javascript">
         //todo move javascript out
-        {% if settings.ENABLE_MATHJAX or settings.MARKUP_CODE_FRIENDLY %}
-            var codeFriendlyMarkdown = true;
-        {% else %}
-            var codeFriendlyMarkdown = false;
-        {% endif %}
         {% if group and request.user.is_authenticated() %}
-            $().ready(function(){
+            $(document).ready(function(){
                 var group_join_btn = new GroupJoinButton();
                 group_join_btn.decorate($('.group-join-btn'));
                 //setup WMD editor
-                if (askbot['data']['userIsAdminOrMod'] === true){
+                if (askbot['data']['userIsAdminOrMod']){
                     //todo: this is kind of Attacklab.init ... should not be here
                     Attacklab.wmd = function(){
                         Attacklab.loadEnv = function(){
@@ -118,17 +112,16 @@
                                 if(!env){
                                     return;
                                 }
-                            
                                 for(var key in env){
                                     Attacklab.wmd_env[key] = env[key];
                                 }
                             };
-                            
+
                             mergeEnv(Attacklab.wmd_defaults);
                             mergeEnv(Attacklab.account_options);
                             mergeEnv(top["wmd_options"]);
                             Attacklab.full = true;
-                            
+
                             var defaultButtons = "bold italic link blockquote code image ol ul heading hr";
                             Attacklab.wmd_env.buttons = Attacklab.wmd_env.buttons || defaultButtons;
                         };

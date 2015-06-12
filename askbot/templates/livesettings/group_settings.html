@@ -26,7 +26,7 @@
                 {% endif %}
                 <tr{% if field.errors %} class="error"{% endif %}>
                     <td class="setting-label">
-                        {{ field.label_tag() }}
+                        <label for="{{ field.name }}">{{ field.label }}</label>
                         {% if field.help_text %}
                             <p class="help">{{ field.help_text|safe }}</p>
                         {% endif %}
@@ -44,7 +44,7 @@
             {{field}}
         {% endif %}
     {% endfor %}
-    <input type="submit" value="Save" class="default" />
+    <input type="submit" value="{% trans %}Save{% endtrans %}" class="default" />
 </form>
 {% else %}
     <p>{% trans %}You don't have permission to edit values.{% endtrans %}</p>

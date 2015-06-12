@@ -41,7 +41,6 @@ def find_setting(group, key, site=None):
     elif use_db:
         try:
             setting = cache_get(ck)
-
         except NotCachedError, nce:
             if loading.app_cache_ready():
                 try:

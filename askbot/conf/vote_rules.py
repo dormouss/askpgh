@@ -48,7 +48,8 @@ settings.register(
         VOTE_RULES,
         'MAX_DAYS_TO_CANCEL_VOTE',
         default=1,
-        description=_('Number of days to allow canceling votes')
+        description=_('Number of days to allow canceling votes '
+            '(-1 for no limit)')
     )
 )
 

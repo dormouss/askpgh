@@ -18,10 +18,12 @@ from askbot import exceptions as askbot_exceptions
 from askbot.conf import settings as askbot_settings
 from django.conf import settings as django_settings
 from askbot.skins import utils as skin_utils
-from askbot.utils.html import absolutize_urls
+from askbot.utils.html import absolutize_urls, site_link
 from askbot.utils.html import site_url as site_url_func
+from askbot.utils import html as html_utils
 from askbot.utils import functions
 from askbot.utils import url_utils
+from askbot.utils.markup import markdown_input_converter
 from askbot.utils.slug import slugify
 from askbot.utils.pluralization import py_pluralize as _py_pluralize
 from askbot.shims.django_shims import ResolverMatch
@@ -74,7 +76,7 @@ def to_int(value):
     return int(value)
 
 @register.filter
-def safe_urlquote(text, quote_plus = False):
+def safe_urlquote(text, quote_plus=False):
     if quote_plus:
         return urllib.quote_plus(text.encode('utf8'))
     else:
@@ -95,10 +97,18 @@ def strip_path(url):
     return url_utils.strip_path(url)
 
 @register.filter
+def strip_tags(text):
+    """remove html tags"""
+    return html_utils.strip_tags(text)
+
+@register.filter
 def can_see_private_user_data(viewer, target):
-    if viewer.is_authenticated() and viewer.is_administrator_or_moderator():
-        #todo: take into account intersection of viewer and target user groups
-        return askbot_settings.SHOW_ADMINS_PRIVATE_USER_DATA 
+    if viewer.is_authenticated():
+        if viewer == target:
+            return True
+        if viewer.is_administrator_or_moderator():
+            #todo: take into account intersection of viewer and target user groups
+            return askbot_settings.SHOW_ADMINS_PRIVATE_USER_DATA 
     return False
 
 @register.filter
@@ -164,6 +174,14 @@ def get_age(birthday):
     day = birthday.day
     diff = current_time - datetime.datetime(year,month,day,0,0,0)
     return diff.days / 365
+
+@register.filter
+def equal(one, other):
+    return one == other
+
+@register.filter
+def not_equal(one, other):
+    return one != other
 
 @register.filter
 def media(url):
@@ -330,7 +348,7 @@ def can_see_offensive_flags(user, post):
     suspended or blocked users cannot see flags
     """
     if user.is_authenticated():
-        if user == post.get_owner():
+        if user.pk == post.author_id:
             return True
         if user.reputation >= askbot_settings.MIN_REP_TO_VIEW_OFFENSIVE_FLAGS:
             return True
@@ -371,3 +389,23 @@ def absolute_value(number):
 def get_empty_search_state(unused):
     from askbot.search.state_manager import SearchState
     return SearchState.get_empty()
+
+@register.filter
+def sub_vars(text, user=None):
+    """replaces placeholders {{ USER_NAME }}
+    {{ SITE_NAME }}, {{ SITE_LINK }} with relevant values"""
+    sitename_re = re.compile(r'\{\{\s*SITE_NAME\s*\}\}')
+    sitelink_re = re.compile(r'\{\{\s*SITE_LINK\s*\}\}')
+
+    if user:
+        username_re = re.compile(r'\{\{\s*USER_NAME\s*\}\}')
+        text = username_re.sub(user.username, text)
+
+    site_name = askbot_settings.APP_SHORT_NAME
+    text = sitename_re.sub(site_name, text)
+    text = sitelink_re.sub(site_link('index', site_name), text)
+    return text
+
+@register.filter
+def convert_markdown(text):
+    return markdown_input_converter(text)

@@ -573,7 +573,7 @@ it may be helpful to split this procedure in two:\n
     def mark_activity(self,p,u,t):
         """p,u,t - post, user, timestamp
         """
-        p.thread.set_last_activity(last_activity_by=u, last_activity_at=t)
+        p.thread.set_last_activity_info(last_activity_by=u, last_activity_at=t)
 
     def _process_post_rollback_revision_group(self, rev_group):
         #todo: don't know what to do here as there were no
@@ -915,7 +915,7 @@ it may be helpful to split this procedure in two:\n
             u = askbot.User()
             u_type = se_u.user_type.name
             if u_type == 'Administrator':
-                u.set_admin_status()
+                u.set_status('d')
             elif u_type == 'Moderator':
                 u.set_status('m')
             elif u_type not in ('Unregistered', 'Registered'):

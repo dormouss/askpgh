@@ -10,7 +10,7 @@ class Migration(DataMigration):
     def forwards(self, orm):
         "Write your forwards methods here."
         for q in orm.Question.objects.all():
-            r = q.revisions.all()[0] #cannot use get_latest_revision()
+            r = q.revisions.all()[0]
             q.text = r.text
             q.save()
         for a in orm.Answer.objects.all():

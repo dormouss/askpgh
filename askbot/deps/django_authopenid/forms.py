@@ -38,8 +38,7 @@ from django.utils.translation import ugettext_lazy
 from django.conf import settings as django_settings
 from askbot.conf import settings as askbot_settings
 from askbot import const as askbot_const
-from django.utils.safestring import mark_safe
-from recaptcha_works.fields import RecaptchaField
+from askbot.forms import AskbotRecaptchaField
 from askbot.utils.forms import NextUrlField, UserNameField, UserEmailField, SetPasswordForm
 from askbot.utils.loading import load_module
 
@@ -55,8 +54,16 @@ __all__ = [
     'OpenidSigninForm','OpenidRegisterForm',
     'ClassicRegisterForm', 'ChangePasswordForm',
     'ChangeEmailForm', 'EmailPasswordForm', 'DeleteForm',
-    'ChangeOpenidForm'
 ]
+
+class ConsentField(forms.BooleanField):
+    def __init__(self, *args, **kwargs):
+        super(ConsentField, self).__init__(*args, **kwargs)
+        self.label = _('I have read and agree with the terms of service')
+        self.required = True
+        self.error_messages['required'] = _(
+            'In order to register, you must accept the terms of service'
+        )
 
 class LoginProviderField(forms.CharField):
     """char field where value must 
@@ -79,24 +86,6 @@ class LoginProviderField(forms.CharField):
             error_message = u'unknown provider name %s' % value
             logging.critical(error_message)
             raise forms.ValidationError(error_message)
-
-class PasswordLoginProviderField(LoginProviderField):
-    """char field where value must 
-    be one of login providers using username/password
-    method for authentication
-    """
-    def clean(self, value):
-        """make sure that value is name of
-        one of the known password login providers
-        """
-        value = super(PasswordLoginProviderField, self).clean(value)
-        providers = util.get_enabled_login_providers()
-        if providers[value]['type'] != 'password':
-            raise forms.ValidationError(
-                    'provider %s must accept password' % value
-                )
-        return value
-
 
 class OpenidSigninForm(forms.Form):
     """ signin form """
@@ -321,36 +310,52 @@ class OpenidRegisterForm(forms.Form):
     username = UserNameField(widget_attrs={'tabindex': 0})
     email = UserEmailField()
 
+    def __init__(self, *args, **kwargs):
+        super(OpenidRegisterForm, self).__init__(*args, **kwargs)
+        if askbot_settings.TERMS_CONSENT_REQUIRED:
+            self.fields['terms_accepted'] = ConsentField()
+
+class SafeOpenidRegisterForm(OpenidRegisterForm):
+    """this form uses recaptcha in addition
+    to the base register form
+    """
+    def __init__(self, *args, **kwargs):
+        super(SafeOpenidRegisterForm, self).__init__(*args, **kwargs)
+        self.fields['recaptcha'] = AskbotRecaptchaField()
+
 class ClassicRegisterForm(SetPasswordForm):
     """ legacy registration form """
 
     next = NextUrlField()
     username = UserNameField(widget_attrs={'tabindex': 0})
     email = UserEmailField()
-    login_provider = PasswordLoginProviderField()
     #fields password1 and password2 are inherited
+
+    def __init__(self, *args, **kwargs):
+        super(ClassicRegisterForm, self).__init__(*args, **kwargs)
+        if askbot_settings.TERMS_CONSENT_REQUIRED:
+            self.fields['terms_accepted'] = ConsentField()
 
 class SafeClassicRegisterForm(ClassicRegisterForm):
     """this form uses recaptcha in addition
     to the base register form
     """
-    recaptcha = RecaptchaField(
-                    private_key = askbot_settings.RECAPTCHA_SECRET,
-                    public_key = askbot_settings.RECAPTCHA_KEY
-                )
+    def __init__(self, *args, **kwargs):
+        super(SafeClassicRegisterForm, self).__init__(*args, **kwargs)
+        self.fields['recaptcha'] = AskbotRecaptchaField()
 
 class ChangePasswordForm(forms.Form):
     """ change password form """
     new_password = forms.CharField(
                         widget=forms.PasswordInput(),
                         error_messages = {
-                            'required': _('password is required'),
+                            'required': ugettext_lazy('password is required'),
                         }
                     )
     new_password_retyped = forms.CharField(
                         widget=forms.PasswordInput(),
                         error_messages = {
-                            'required': _('retype your password'),
+                            'required': ugettext_lazy('retype your password'),
                         }
                     )
 
@@ -389,7 +394,7 @@ class ChangeEmailForm(forms.Form):
         if 'email' in self.cleaned_data:
             try:
                 user = User.objects.get(email = self.cleaned_data['email'])
-                if self.user and self.user == user:   
+                if self.user and self.user.pk == user.pk:   
                     return self.cleaned_data['email']
             except User.DoesNotExist:
                 return self.cleaned_data['email']
@@ -458,9 +463,7 @@ class EmailPasswordForm(forms.Form):
     """ send new password form """
     username = UserNameField(
                     skip_clean=True,
-                    label=mark_safe(
-                            ugettext_lazy('Your user name (<i>required</i>)')
-                        )
+                    label=ugettext_lazy('Your user name')
                 )
 
     def __init__(self, data=None, files=None, auto_id='id_%s', prefix=None, 
@@ -486,5 +489,7 @@ def get_registration_form_class():
     custom_class = getattr(django_settings, 'REGISTRATION_FORM', None)
     if custom_class:
         return load_module(custom_class)
+    elif askbot_settings.USE_RECAPTCHA:
+        return SafeOpenidRegisterForm
     else:
         return OpenidRegisterForm

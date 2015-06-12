@@ -2,7 +2,7 @@
     <div class="content-wrapper">
         {% if user_messages %}
             {% for message in user_messages %}
-                  <p class="notification">{{ message }}</p>
+                  {% if message %}<p class="notification">{{ message }}</p>{% endif %}
             {% endfor %}
         {% endif %}
         <a id="closeNotify" onclick="notify.close(true)"></a>

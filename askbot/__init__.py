@@ -7,37 +7,42 @@ basic actions on behalf of the forum application
 import os
 import platform
 
-VERSION = (0, 7, 49)
+VERSION = (0, 7, 53)
 
 #keys are module names used by python imports,
 #values - the package qualifier to use for pip
 REQUIREMENTS = {
     'akismet': 'akismet',
-    'django': 'django>=1.3.1,<1.6',
+    'avatar': 'django-avatar>=2.0',
+    'bs4': 'beautifulsoup4',
+    'coffin': 'Coffin>=0.3,<=0.3.8',
     'compressor': 'django-compressor==1.2',
-    'jinja2': 'Jinja2',
-    'coffin': 'Coffin>=0.3',
-    'south': 'South>=0.7.1',
-    'oauth2': 'oauth2',
-    'markdown2': 'markdown2',
-    'html5lib': 'html5lib==0.90',
-    'keyedcache': 'django-keyedcache',
-    'threaded_multihost': 'django-threaded-multihost',
-    'robots': 'django-robots',
-    'sanction': 'sanction==0.3.1',
-    'unidecode': 'unidecode',
-    'django_countries': 'django-countries==1.0.5',
-    'djcelery': 'django-celery==3.0.11',
+    'django': 'django>=1.5,<1.6',
+    'django_countries': 'django-countries==3.3',
+    'django_transaction_signals': 'django-transaction-signals',
+    'djcelery': 'django-celery>=3.0.11',
     'djkombu': 'django-kombu==0.9.4',
-    'followit': 'django-followit',
-    'recaptcha_works': 'django-recaptcha-works',
+    'followit': 'django-followit==0.0.7',
+    'html5lib': 'html5lib==0.90',
+    'jinja2': 'Jinja2',
+    'jsonfield': 'jsonfield',
+    'keyedcache': 'django-keyedcache',
+    'longerusername': 'longerusername',
+    'markdown2': 'markdown2',
+    'oauth2': 'oauth2',
     'openid': 'python-openid',
+    'picklefield': 'django-picklefield==0.3.0',
+    'jwt': 'pyjwt',
     'pystache': 'pystache==0.3.1',
     'pytz': 'pytz==2013b',
+    'recaptcha_works': 'django-recaptcha-works',
+    'robots': 'django-robots==1.0',
+    'sanction': 'sanction==0.3.1',
+    'south': 'South>=0.7.1',
+    'threaded_multihost': 'django-threaded-multihost',
     'tinymce': 'django-tinymce==1.5.1b2',
-    'longerusername': 'longerusername',
-    'bs4': 'beautifulsoup4',
-    'picklefield': 'django-picklefield==0.3.0',
+    'unidecode': 'unidecode',
+    #'stopforumspam': 'stopforumspam'
 }
 
 if platform.system() != 'Windows':

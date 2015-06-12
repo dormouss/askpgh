@@ -104,6 +104,8 @@ BEGIN
         RETURN 'turkish';
     ELSIF lang_code = 'ja' THEN
         RETURN 'japanese';
+    ELSIF lang_code = 'zh-cn' THEN
+        RETURN 'chinese';
     END IF;
     RETURN 'english';
 END;

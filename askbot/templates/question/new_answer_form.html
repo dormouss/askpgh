@@ -35,25 +35,28 @@
             <div class="folded-editor{% if editor_is_unfolded %}unfolded{% endif %}" tabindex="6">
               <p class="prompt"><a>{{ settings.WORDS_ADD_ANSWER|escape }}</a></p>
                 <div class="editor-proper">
-                    {{ macros.edit_post(
-                            answer,
-                            user = request.user,
-                            editor_type = settings.EDITOR_TYPE
-                        )
-                    }}
-                    <input id="add-answer-btn" type="submit" class="submit after-editor" style="float:left"/>
+                    {{ macros.edit_post(answer) }}
+                    <div class="answer-options">
+                        {% if settings.WIKI_ON %}
+                            {{ macros.checkbox_in_div(answer.wiki) }}
+                        {% endif %}
+                        {% if settings.GROUPS_ENABLED and 
+                            request.user.is_authenticated() and 
+                            request.user.can_make_group_private_posts()
+                        %}
+                            {{ macros.checkbox_in_div(answer.post_privately) }}
+                        {% endif %}
+                        {% set post_form=answer %}
+                        {% include "widgets/proxy_author_fields.html" %}
+                    </div>
+                    {% if answer.recaptcha %}
+                        <div>{{ macros.form_field_with_errors(answer.recaptcha) }}</div>
+                        <div class="clearfix"></div>
+                    {% endif %}
+                    <input id="add-answer-btn" type="submit" class="submit"/>
                     <script type="text/javascript">
                         askbot['functions']['renderAddAnswerButton']();
                     </script>
-                    {% if settings.WIKI_ON %}
-                        {{ macros.checkbox_in_div(answer.wiki) }}
-                    {% endif %}
-                    {% if settings.GROUPS_ENABLED and 
-                        request.user.is_authenticated() and 
-                        request.user.can_make_group_private_posts()
-                    %}
-                        {{ macros.checkbox_in_div(answer.post_privately) }}
-                    {% endif %}
                 </div>
             </div>
         {% endif %}

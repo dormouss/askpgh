@@ -3,15 +3,8 @@
     <span class="user-info">
     {{ macros.inbox_link(request.user) }}
     {{ macros.moderation_items_link(request.user, moderation_items) }}
-    {%-
-        if settings.KARMA_MODE != 'hidden' or settings.BADGES_MODE != 'hidden' 
-    -%}
-        ({{ macros.user_long_score_and_badge_summary(
-                                        user,
-                                        karma_mode=settings.KARMA_MODE,
-                                        badges_mode=settings.BADGES_MODE
-                                    )
-        }})
+    {%- if settings.KARMA_MODE != 'hidden' or settings.BADGES_MODE != 'hidden' -%}
+        ({{ macros.user_long_score_and_badge_summary(user) }})
     {%- endif -%}
     </span>
     {% if settings.USE_ASKBOT_LOGIN_SYSTEM %}

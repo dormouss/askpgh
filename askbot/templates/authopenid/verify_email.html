@@ -8,7 +8,7 @@
     </label>
     <form method="post">{% csrf_token %}
         <input id="validation-code" type="text" name="validation_code" />
-        <input type="submit" class="submit" value="{% trans %}Confirm email{% endtrans %}" />
+        <input type="submit" value="{% trans %}Confirm email{% endtrans %}" />
     </form>
 {% endblock %}
 <!-- end changeemail.html -->

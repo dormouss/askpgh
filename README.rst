@@ -18,7 +18,7 @@ All documentation is in the directory askbot/doc
 To contribute code, please fork and make pull requests.
 
 If you are planning to add a new feature, please bring it up for discussion at our forum
-(http://askbot.org/en/questions/) and mention that are willing to develop this feature.
+(http://askbot.org/en/questions/) and mention that you are willing to develop this feature.
 
 We will merge obvious bug fixes without questions, for more complex fixes
 please add a test case that fails before and passes after applying your fix.

@@ -1,1 +1,1 @@
-<p>{% trans %}Sincerely,<br>{{ site_name }} Administrator{% endtrans %}</p>
+{{ settings.EMAIL_TEXT_FOOTER|sub_vars(recipient_user) }}

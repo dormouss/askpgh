@@ -5,8 +5,11 @@ users or others
 """
 from askbot.conf.settings_wrapper import settings
 from askbot.conf.super_groups import REP_AND_BADGES
-from askbot.deps.livesettings import ConfigurationGroup, IntegerValue
+from askbot.deps.livesettings import ConfigurationGroup
+from askbot.deps.livesettings import IntegerValue
+from askbot.deps.livesettings import BooleanValue
 from django.utils.translation import ugettext_lazy as _
+from django.utils.translation import string_concat
 
 BADGES = ConfigurationGroup(
                     'BADGES',
@@ -15,218 +18,233 @@ BADGES = ConfigurationGroup(
                     super_group = REP_AND_BADGES
                 )
 
-settings.register(
-    IntegerValue(
-        BADGES,
-        'DISCIPLINED_BADGE_MIN_UPVOTES',
-        default=3,
-        description=_('Disciplined: minimum upvotes for deleted post')
+def register_badge_settings(badge_slug=None, badge_name=None, params=None):
+    settings.register(
+        BooleanValue(
+            BADGES,
+            badge_slug + '_BADGE_ENABLED',
+            default=True,
+            description=_('Enable "%s" badge') % badge_name
+        )
     )
+    if params is None:
+        return
+
+    for param_slug, param_data in params.items():
+        param_description = param_data[0]
+        param_default = param_data[1]
+        settings.register(
+                IntegerValue(
+                BADGES,
+                badge_slug + '_BADGE_' + param_slug,
+                description=string_concat(badge_name, ': ', param_description),
+                default=param_default
+            )
+        )
+        
+register_badge_settings(
+    'ASSOCIATE_EDITOR',
+    _('Associate Editor'),
+    params={
+        'MIN_EDITS': (_('minimum number of edits'), 20)
+    }
 )
 
-settings.register(
-    IntegerValue(
-        BADGES,
-        'PEER_PRESSURE_BADGE_MIN_DOWNVOTES',
-        default=3,
-        description=_('Peer Pressure: minimum downvotes for deleted post')
-    )
+register_badge_settings('AUTOBIOGRAPHER', _('Autobiographer'))
+
+register_badge_settings('CITIZEN_PATROL', _('Citizen Patrol'))
+
+register_badge_settings(
+    'CIVIC_DUTY',
+    _('Civic Duty'),
+    params={
+        'MIN_VOTES': (_('minimum votes'), 100)
+    }
 )
 
-settings.register(
-    IntegerValue(
-        BADGES,
-        'TEACHER_BADGE_MIN_UPVOTES',
-        default=1,
-        description=_('Teacher: minimum upvotes for the answer')
-    )
+register_badge_settings('CLEANUP', _('Cleanup'))
+
+register_badge_settings(
+    'COMMENTATOR',
+    _('Commentator'),
+    params={
+        'MIN_COMMENTS': (_('minimum comments'), 10)
+    }
 )
 
-settings.register(
-    IntegerValue(
-        BADGES,
-        'NICE_ANSWER_BADGE_MIN_UPVOTES',
-        default=2,
-        description=_('Nice Answer: minimum upvotes for the answer')
-    )
+register_badge_settings('CRITIC', _('Critic'))
+
+register_badge_settings(
+    'DISCIPLINED',
+    _('Disciplined'),
+    params={
+        'MIN_UPVOTES': (_('minimum upvotes for deleted post'), 3)
+    }
 )
 
-settings.register(
-    IntegerValue(
-        BADGES,
-        'GOOD_ANSWER_BADGE_MIN_UPVOTES',
-        default=3,
-        description=_('Good Answer: minimum upvotes for the answer')
-    )
+register_badge_settings('EDITOR', _('Editor'))
+
+register_badge_settings(
+    'ENLIGHTENED',
+    _('Enlightened Duty'),
+    params={
+        'MIN_UPVOTES': (_('minimum upvotes'), 3)
+    }
 )
 
-settings.register(
-    IntegerValue(
-        BADGES,
-        'GREAT_ANSWER_BADGE_MIN_UPVOTES',
-        default=5,
-        description=_('Great Answer: minimum upvotes for the answer')
-    )
+register_badge_settings(
+    'ENTHUSIAST',
+    _('Enthusiast'),
+    params={
+        'MIN_DAYS': (_('minimum days'), 5)
+    }
 )
 
-settings.register(
-    IntegerValue(
-        BADGES,
-        'NICE_QUESTION_BADGE_MIN_UPVOTES',
-        default=2,
-        description=_('Nice Question: minimum upvotes for the question')
-    )
+register_badge_settings('EXPERT', _('Expert'))
+
+register_badge_settings(
+    'FAMOUS_QUESTION',
+    _('Famous Question') ,
+    params={
+        'MIN_VIEWS': (_('minimum views'), 50)
+    }
 )
 
-settings.register(
-    IntegerValue(
-        BADGES,
-        'GOOD_QUESTION_BADGE_MIN_UPVOTES',
-        default=3,
-        description=_('Good Question: minimum upvotes for the question')
-    )
+register_badge_settings(
+    'FAVORITE_QUESTION',
+    _('Favorite Question'),
+    params={
+        'MIN_STARS': (_('minimum followers'), 3)
+    }
 )
 
-settings.register(
-    IntegerValue(
-        BADGES,
-        'GREAT_QUESTION_BADGE_MIN_UPVOTES',
-        default=5,
-        description=_('Great Question: minimum upvotes for the question')
-    )
+register_badge_settings(
+    'GOOD_ANSWER',
+    _('Good Answer'),
+    params={
+        'MIN_UPVOTES': (_('minimum upvotes for the answer'), 3)
+    }
 )
 
-settings.register(
-    IntegerValue(
-        BADGES,
-        'POPULAR_QUESTION_BADGE_MIN_VIEWS',
-        default=15,
-        description=_('Popular Question: minimum views')
-    )
+register_badge_settings(
+    'GOOD_QUESTION',
+    _('Good Question'),
+    params={
+        'MIN_UPVOTES': (_('minimum upvotes for the question'), 3)
+    }
 )
 
-settings.register(
-    IntegerValue(
-        BADGES,
-        'NOTABLE_QUESTION_BADGE_MIN_VIEWS',
-        default=25,
-        description=_('Notable Question: minimum views')
-    )
+register_badge_settings(
+    'GREAT_ANSWER',
+    _('Great Answer'),
+    params={
+        'MIN_UPVOTES': (_('minimum upvotes for the answer'), 5)
+    }
 )
 
-settings.register(
-    IntegerValue(
-        BADGES,
-        'FAMOUS_QUESTION_BADGE_MIN_VIEWS',
-        default=50,
-        description=_('Famous Question: minimum views')
-    )
+register_badge_settings(
+    'GREAT_QUESTION',
+    _('Great Question'),
+    params={
+        'MIN_UPVOTES': (_('minimum upvotes for the question'), 5)
+    }
 )
 
-settings.register(
-    IntegerValue(
-        BADGES,
-        'SELF_LEARNER_BADGE_MIN_UPVOTES',
-        default=1,
-        description=_('Self-Learner: minimum answer upvotes')
-    )
+register_badge_settings(
+    'GURU',
+    _('Guru'),
+    params={
+        'MIN_UPVOTES': (_('minimum upvotes'), 5)
+    }
 )
 
-settings.register(
-    IntegerValue(
-        BADGES,
-        'CIVIC_DUTY_BADGE_MIN_VOTES',
-        default=100,
-        description=_('Civic Duty: minimum votes')
-    )
+register_badge_settings(
+    'NECROMANCER',
+    _('Necromancer'),
+    params={
+        'MIN_UPVOTES': (_('minimum upvotes'), 1),
+        'MIN_DELAY': (_('minimum delay in days'), 30)
+    }
 )
 
-settings.register(
-    IntegerValue(
-        BADGES,
-        'ENLIGHTENED_BADGE_MIN_UPVOTES',
-        default=3,
-        description=_('Enlightened Duty: minimum upvotes')
-    )
+register_badge_settings(
+    'NICE_QUESTION',
+    _('Nice Question'),
+    params={
+        'MIN_UPVOTES': (_('minimum upvotes for the question'), 2)
+    }
 )
 
-settings.register(
-    IntegerValue(
-        BADGES,
-        'GURU_BADGE_MIN_UPVOTES',
-        default=5,
-        description=_('Guru: minimum upvotes')
-    )
+register_badge_settings(
+    'NICE_ANSWER',
+    _('Nice Answer'),
+    params={
+        'MIN_UPVOTES': (_('minimum upvotes for the answer'), 2)
+    }
 )
 
-settings.register(
-    IntegerValue(
-        BADGES,
-        'NECROMANCER_BADGE_MIN_UPVOTES',
-        default=1,
-        description=_('Necromancer: minimum upvotes')
-    )
+register_badge_settings(
+    'NOTABLE_QUESTION',
+    _('Notable Question'),
+    params={
+        'MIN_VIEWS': (_('minimum views'), 25)
+    }
 )
 
-settings.register(
-    IntegerValue(
-        BADGES,
-        'NECROMANCER_BADGE_MIN_DELAY',
-        default=30,
-        description=_('Necromancer: minimum delay in days')
-    )
+register_badge_settings('ORGANIZER', _('Organizer'))
+
+register_badge_settings(
+    'PEER_PRESSURE',
+    _('Peer pressure'),
+    params={
+        'MIN_DOWNVOTES': (_('minimum downvotes for deleted post'), 3)
+    }
 )
 
-settings.register(
-    IntegerValue(
-        BADGES,
-        'ASSOCIATE_EDITOR_BADGE_MIN_EDITS',
-        default=20,
-        description=_('Associate Editor: minimum number of edits')
-    )
+register_badge_settings(
+    'POPULAR_QUESTION',
+    _('Popular Question'),
+    params={
+        'MIN_VIEWS': (_('minimum views'), 15)
+    }
 )
 
-settings.register(
-    IntegerValue(
-        BADGES,
-        'FAVORITE_QUESTION_BADGE_MIN_STARS',
-        default=3,
-        description=_('Favorite Question: minimum stars')
-    )
+register_badge_settings('PUNDIT', _('Pundit'))
+
+register_badge_settings('SCHOLAR', _('Scholar'))
+
+register_badge_settings(
+    'SELF_LEARNER',
+    _('Self-Learner'),
+    params={
+        'MIN_UPVOTES': (_('minimum answer upvotes'), 1)
+    }
 )
 
-settings.register(
-    IntegerValue(
-        BADGES,
-        'STELLAR_QUESTION_BADGE_MIN_STARS',
-        default=5,
-        description=_('Stellar Question: minimum stars')
-    )
+register_badge_settings(
+    'STELLAR_QUESTION',
+    _('Stellar Question'),
+    params={
+        'MIN_STARS': (_('minimum followers'), 5)
+    }
 )
 
-settings.register(
-    IntegerValue(
-        BADGES,
-        'COMMENTATOR_BADGE_MIN_COMMENTS',
-        default=10,
-        description=_('Commentator: minimum comments')
-    )
+register_badge_settings('STUDENT', _('Student'))
+
+register_badge_settings('SUPPORTER', _('Supporter'))
+
+register_badge_settings(
+    'TAXONOMIST',
+    _('Taxonomist'),
+    params={
+        'MIN_USE_COUNT': (_('minimum tag use count'), 5)
+    }
 )
 
-settings.register(
-    IntegerValue(
-        BADGES,
-        'TAXONOMIST_BADGE_MIN_USE_COUNT',
-        default = 5,
-        description = _('Taxonomist: minimum tag use count')
-    )
-)
-
-settings.register(
-    IntegerValue(
-        BADGES,
-        'ENTHUSIAST_BADGE_MIN_DAYS',
-        default = 5,
-        description = _('Enthusiast: minimum days')
-    )
+register_badge_settings(
+    'TEACHER',
+    _('Teacher'),
+    params={
+        'MIN_UPVOTES': (_('minimum upvotes for the answer'), 1)
+    }
 )

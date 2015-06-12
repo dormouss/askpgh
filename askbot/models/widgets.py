@@ -18,7 +18,7 @@ class AskWidget(models.Model):
         app_label = 'askbot'
 
     def __unicode__(self):
-        return "Widget: %s" % self.title
+        return u"Widget: %s" % self.title
 
 
 class QuestionWidget(models.Model):

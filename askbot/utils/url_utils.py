@@ -6,6 +6,17 @@ try:
     from django.conf.urls import url
 except ImportError:
     from django.conf.urls.defaults import url
+from django.utils import translation
+
+def reverse_i18n(lang, *args, **kwargs):
+    """reverses url in requested language"""
+    assert(lang != None)
+    current_lang = translation.get_language()
+    translation.activate(lang)
+    url = reverse(*args, **kwargs)
+    translation.activate(current_lang)
+    return url
+
 
 def service_url(*args, **kwargs):
     """adds the service prefix to the url"""

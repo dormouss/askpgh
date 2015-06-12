@@ -7,7 +7,7 @@ from askbot import const
 from askbot.conf import settings as askbot_settings
 from django.utils.translation import ugettext as _
 from django.utils.translation import ungettext
-from askbot import mail
+from askbot.mail.messages import AcceptAnswersReminder
 from askbot.utils.classes import ReminderSchedule
 from askbot.utils.html import site_url
 from django.template import Context
@@ -43,12 +43,12 @@ class Command(NoArgsCommand):
         #for each user, select a tag filtered subset
         #format the email reminder and send it
         for user in models.User.objects.exclude(status = 'b'):
-            user_questions = questions.filter(author = user)
+            user_questions = questions.filter(author=user)
 
             final_question_list = user_questions.get_questions_needing_reminder(
-                activity_type = const.TYPE_ACTIVITY_ACCEPT_ANSWER_REMINDER_SENT,
-                user = user,
-                recurrence_delay = schedule.recurrence_delay
+                activity_type=const.TYPE_ACTIVITY_ACCEPT_ANSWER_REMINDER_SENT,
+                user=user,
+                recurrence_delay=schedule.recurrence_delay
             )
             #todo: rewrite using query set filter
             #may be a lot more efficient
@@ -57,24 +57,13 @@ class Command(NoArgsCommand):
             if question_count == 0:
                 continue
 
-            reminder_phrase = _('Please select the best responses to:')
+            email = AcceptAnswersReminder({
+                        'questions': final_question_list,
+                        'recipient_user': user
+                    })
 
-            data = {
-                    'site_url': site_url(''),#here we need only the domain name
-                    'questions': final_question_list,
-                    'reminder_phrase': reminder_phrase
-                   }
-
-            template = get_template('email/accept_answer_reminder.html')
-            body_text = template.render(Context(data))#todo: set lang
-
-            subject_line = askbot_settings.WORDS_ACCEPT_BEST_ANSWERS_FOR_YOUR_QUESTIONS
             if DEBUG_THIS_COMMAND:
                 print "User: %s<br>\nSubject:%s<br>\nText: %s<br>\n" % \
-                    (user.email, subject_line, body_text)
+                    (user.email, email.render_subject(), email.render_body())
             else:
-                mail.send_mail(
-                    subject_line = subject_line,
-                    body_text = body_text,
-                    recipient_list = (user.email,)
-                )
+                email.send([user.email],)

@@ -6,20 +6,22 @@
 {% endif %}
 <div class="box vote-buttons">
   <h2>{{ settings.WORDS_QUESTION_TOOLS|escape }}</h2>
-    {% if favorited %}
-        <a class="button followed" 
-            alt="{% trans %}click to unfollow {% endtrans %}">
-            <div>{% trans %}Following{% endtrans %}</div>
-            <div class='unfollow'>{% trans %}Unfollow{% endtrans %}</div>
-        </a>
-    {% else %}
-        <a class="button followed"
-            alt="{% trans %}click to follow {% endtrans %}">
-            {%trans %}Follow{%endtrans%}
-        </a>
-    {% endif %}
+    <button class="js-follow-question button large"
+        data-is-on="{{ favorited|as_js_bool }}"
+        data-off-prompt-text="{% trans %}Unfollow{% endtrans %}"
+        data-on-prompt-text="{% trans %}Follow{% endtrans %}"
+        data-on-state-text="{% trans %}Following{% endtrans %}"
+        data-off-state-text="{% trans %}Follow{% endtrans %}"
+        data-toggle-url="{% url 'toggle_follow_question' %}"
+    >
+        {% if favorited %}
+            {% trans %}Following{% endtrans %}
+        {% else %}
+            {% trans %}Follow{% endtrans %}
+        {% endif %}
+    </button>
     <div class="clearfix"></div>
-    <div id="favorite-number" class="favorite-number{% if favorited %} my-favorite-number{% endif %}">
+    <div class="js-question-follower-count">
         {% set follower_count = thread.favourite_count %}
         {% if follower_count > 0 %}
             {% trans count=follower_count %}{{count}} follower{% pluralize %}{{count}} followers{% endtrans %}

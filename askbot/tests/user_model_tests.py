@@ -31,7 +31,8 @@ class UserModelTests(AskbotTestCase):
         bulk_subscription = models.BulkTagSubscription.objects.create(
                                                 tag_names=[one_tag.name, another_tag.name],
                                                 group_list=[global_group],
-                                                tag_author=the_boss
+                                                tag_author=the_boss,
+                                                language_code='en'
                                             )
 
         user = self.create_user('someone')

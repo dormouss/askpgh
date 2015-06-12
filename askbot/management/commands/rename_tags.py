@@ -83,6 +83,14 @@ ask you to confirm your action before making changes.
             default = None,
             help = 'id of the user who will be marked as a performer of this operation'
         ),
+        make_option('--lang',
+            action = 'store',
+            type = 'str',
+            dest = 'lang',
+            default = django_settings.LANGUAGE_CODE,
+            help = 'language code for the tags to rename e.g. "en"'
+        ),
+
     )
 
     #@transaction.commit_manually
@@ -116,7 +124,11 @@ ask you to confirm your action before making changes.
         from_tags = list()
         try:
             for tag_name in from_tag_names:
-                from_tags.append(models.Tag.objects.get(name = tag_name))
+                tag = models.Tag.objects.get(
+                                    name=tag_name,
+                                    language_code=options['lang']
+                                )
+                from_tags.append(tag)
         except models.Tag.DoesNotExist:
             error_message = u"""tag %s was not found. It is possible that the tag
 exists but we were not able to match it's unicode value
@@ -134,12 +146,17 @@ Also, you can try command "rename_tag_id"
         to_tags = list()
         for tag_name in to_tag_names:
             try:
-                to_tags.append(models.Tag.objects.get(name = tag_name))
+                tag = models.Tag.objects.get(
+                                    name=tag_name,
+                                    language_code=options['lang']
+                                )
+                to_tags.append(tag)
             except models.Tag.DoesNotExist:
                 to_tags.append(
                     models.Tag.objects.create(
-                                name = tag_name,
-                                created_by = admin
+                                name=tag_name,
+                                created_by=admin,
+                                language_code=options['lang']
                     )
                 )
             except models.Tag.MultipleObjectsReturned:

@@ -58,7 +58,7 @@ class UserAssociation(models.Model):
                             )
 
     def __unicode__(self):
-        return "Openid %s with user %s" % (self.openid_url, self.user)
+        return u"Openid %s with user %s" % (self.openid_url, self.user)
 
 class UserPasswordQueueManager(models.Manager):
     """ manager for UserPasswordQueue object """

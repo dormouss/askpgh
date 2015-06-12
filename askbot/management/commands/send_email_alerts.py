@@ -6,6 +6,7 @@ from django.db.models import Q, F
 from askbot.models import User, Post, PostRevision, Thread
 from askbot.models import Activity, EmailFeedSetting
 from django.template.loader import get_template
+from django.template import Context
 from django.utils.translation import ugettext as _
 from django.utils.translation import ungettext
 from django.utils.translation import activate as activate_language
@@ -13,12 +14,16 @@ from django.conf import settings as django_settings
 from askbot.conf import settings as askbot_settings
 from django.utils.datastructures import SortedDict
 from django.contrib.contenttypes.models import ContentType
+from django.contrib.sites.models import Site
 from askbot import const
-from askbot import mail
+from askbot.mail.messages import BatchEmailAlert
+from askbot.mail import send_mail
 from askbot.utils.slug import slugify
 from askbot.utils.html import site_url
+import traceback
 
 DEBUG_THIS_COMMAND = False
+SITE_ID = Site.objects.get_current().id
 
 def get_all_origin_posts(mentions):
     origin_posts = set()
@@ -82,13 +87,41 @@ def format_action_count(string, number, output):
 class Command(NoArgsCommand):
     def handle_noargs(self, **options):
         if askbot_settings.ENABLE_EMAIL_ALERTS:
-            try:
+            activate_language(django_settings.LANGUAGE_CODE)
+            for user in User.objects.all():
                 try:
-                    self.send_email_alerts()
-                except Exception, e:
-                    print e
-            finally:
-                connection.close()
+                    self.send_email_alerts(user)
+                except Exception:
+                    self.report_exception(user)
+            connection.close()
+
+    def format_debug_msg(self, user, content):
+        msg = u"%s site_id=%d user=%s: %s" % ( 
+            datetime.datetime.now().strftime('%y-%m-%d %h:%m:%s'),
+            SITE_ID,
+            repr(user.username),
+            content
+        )
+        return msg.encode('utf-8')
+
+    def report_exception(self, user):
+        """reports exception that happened during sending email alert to user"""
+        message = self.format_debug_msg(user, traceback.format_exc())
+        print message
+        admin_email = askbot_settings.ADMIN_EMAIL 
+        try:
+            subject_line = u"Error processing daily/weekly notification for User '%s' for Site '%s'" % (user.username, SITE_ID)
+            send_mail(
+                subject_line=subject_line.encode('utf-8'),
+                body_text=message,
+                recipient_list=[admin_email,]
+            )
+        except:
+            message = u"ERROR: was unable to report this exception to %s: %s" % (admin_email, traceback.format_exc())
+            print self.format_debug_msg(user, message)
+        else: 
+            message = u"Sent email reporting this exception to %s" % admin_email
+            print self.format_debug_msg(user, message)
 
     def get_updated_questions_for_user(self, user):
         """
@@ -143,7 +176,7 @@ class Command(NoArgsCommand):
                                 thread__closed=True
                             ).order_by('-thread__last_activity_at')
 
-        if askbot_settings.ENABLE_CONTENT_MODERATION:
+        if askbot_settings.CONTENT_MODERATION_MODE == 'premoderation':
             base_qs = base_qs.filter(approved = True)
         #todo: for some reason filter on did not work as expected ~Q(viewed__who=user) | 
         #      Q(viewed__who=user,viewed__when__lt=F('thread__last_activity_at'))
@@ -409,87 +442,60 @@ class Command(NoArgsCommand):
         #todo: sort question list by update time
         return q_list 
 
-    def send_email_alerts(self):
+    def send_email_alerts(self, user):
         #does not change the database, only sends the email
         #todo: move this to template
-        activate_language(django_settings.LANGUAGE_CODE)
-        template = get_template('email/delayed_email_alert.html')
-        for user in User.objects.all():
-            user.add_missing_askbot_subscriptions()
-            #todo: q_list is a dictionary, not a list
-            q_list = self.get_updated_questions_for_user(user)
-            if len(q_list.keys()) == 0:
-                continue
-            num_q = 0
-            for question, meta_data in q_list.items():
+        user.add_missing_askbot_subscriptions()
+        #todo: q_list is a dictionary, not a list
+        q_list = self.get_updated_questions_for_user(user)
+        if len(q_list.keys()) == 0:
+            return
+        num_q = 0
+        for question, meta_data in q_list.items():
+            if meta_data['skip']:
+                del q_list[question]
+            else:
+                num_q += 1
+        if num_q > 0:
+            threads = Thread.objects.filter(id__in=[qq.thread_id for qq in q_list.keys()])
+            tag_summary = Thread.objects.get_tag_summary_from_threads(threads)
+
+            question_count = len(q_list.keys())
+
+            items_added = 0
+            items_unreported = 0
+            questions_data = list()
+            for q, meta_data in q_list.items():
+                act_list = []
                 if meta_data['skip']:
-                    del q_list[question]
+                    continue
+                if items_added >= askbot_settings.MAX_ALERTS_PER_EMAIL:
+                    items_unreported = num_q - items_added #may be inaccurate actually, but it's ok
+                    break
                 else:
-                    num_q += 1
-            if num_q > 0:
-                threads = Thread.objects.filter(id__in=[qq.thread_id for qq in q_list.keys()])
-                tag_summary = Thread.objects.get_tag_summary_from_threads(threads)
+                    items_added += 1
+                    if meta_data['new_q']:
+                        act_list.append(_('new question'))
+                    format_action_count('%(num)d rev', meta_data['q_rev'], act_list)
+                    format_action_count('%(num)d ans', meta_data['new_ans'], act_list)
+                    format_action_count('%(num)d ans rev', meta_data['ans_rev'], act_list)
+                    questions_data.append({
+                        'url': site_url(q.get_absolute_url()),
+                        'info': ', '.join(act_list),
+                        'title': q.thread.title
+                    })
 
-                question_count = len(q_list.keys())
+            activate_language(user.get_primary_language())
+            email = BatchEmailAlert({
+                'questions': questions_data,
+                'question_count': question_count,
+                'tag_summary': tag_summary,
+                'user': user
+            })
 
-                if tag_summary:
-                    subject_line = ungettext(
-                        '%(question_count)d update about %(topics)s',
-                        '%(question_count)d updates about %(topics)s',
-                        question_count
-                    ) % {
-                        'question_count': question_count,
-                        'topics': tag_summary
-                    }
-                else:
-                    subject_line = ungettext(
-                        '%(question_count)d update',
-                        '%(question_count)d updates',
-                        question_count
-                    ) % {
-                        'question_count': question_count,
-                    }
+            if DEBUG_THIS_COMMAND == True:
+                recipient_email = askbot_settings.ADMIN_EMAIL
+            else:
+                recipient_email = user.email
 
-                items_added = 0
-                items_unreported = 0
-                questions_data = list()
-                for q, meta_data in q_list.items():
-                    act_list = []
-                    if meta_data['skip']:
-                        continue
-                    if items_added >= askbot_settings.MAX_ALERTS_PER_EMAIL:
-                        items_unreported = num_q - items_added #may be inaccurate actually, but it's ok
-                        break
-                    else:
-                        items_added += 1
-                        if meta_data['new_q']:
-                            act_list.append(_('new question'))
-                        format_action_count('%(num)d rev', meta_data['q_rev'], act_list)
-                        format_action_count('%(num)d ans', meta_data['new_ans'], act_list)
-                        format_action_count('%(num)d ans rev', meta_data['ans_rev'], act_list)
-                        questions_data.append({
-                            'url': site_url(q.get_absolute_url()),
-                            'info': ', '.join(act_list),
-                            'title': q.thread.title
-                        })
-
-                activate_language(user.get_primary_language())
-                text = template.render({
-                    'recipient_user': user,
-                    'questions': questions_data,
-                    'name': user.username,
-                    'admin_email': askbot_settings.ADMIN_EMAIL,
-                    'site_name': askbot_settings.APP_SHORT_NAME,
-                    'is_multilingual': django_settings.ASKBOT_MULTILINGUAL
-                })
-
-                if DEBUG_THIS_COMMAND == True:
-                    recipient_email = askbot_settings.ADMIN_EMAIL
-                else:
-                    recipient_email = user.email
-
-                mail.send_mail(
-                    subject_line = subject_line,
-                    body_text = text,
-                    recipient_list = [recipient_email]
-                )
+            email.send([recipient_email,])

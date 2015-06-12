@@ -18,6 +18,7 @@ lint
 env
 .vagrant
 /custom_settings
+/custom
 /static
 django
 lamson
@@ -51,3 +52,5 @@ recaptcha
 /db.sq3
 *.DS_Store
 htmlcov
+node_modules
+bower_components/

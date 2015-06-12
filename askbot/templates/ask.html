@@ -3,7 +3,7 @@
 <!-- template ask.html -->
 {% block title %}{% spaceless %}{% trans %}Ask Your Question{% endtrans %}{% endspaceless %}{% endblock %}
 {% block forestyle %}
-    <link rel="stylesheet" type="text/css" href="{{"/js/wmd/wmd.css"|media}}" />
+    <link rel="stylesheet" type="text/css" href="{{"/wmd/wmd.css"|media}}" />
 {% endblock %}
 {# main contents of ask form is in the template input_bar #}
 {% block sidebar %}
@@ -18,9 +18,12 @@
     {% include "widgets/ask_form.html" %}
 {% endblock %}
 {% block endjs %}
-    <script type='text/javascript' src='{{"/js/editor.js"|media}}'></script>
-    <script type='text/javascript' src='{{"/js/jquery.validate.js"|media}}'></script>
-    <script type='text/javascript' src='{{"/js/post.js"|media}}'></script>
+    {% compress js %}
+    <script type="text/javascript" src="{{ '/jslib/editor.js'|media }}"></script>
+    <script type="text/javascript" src="{{ '/jslib/jquery.validate.js'|media }}"></script>
+    <script type="text/javascript" src="{{ '/jslib/prettify.js'|media }}"></script>
+    <script type="text/javascript" src="{{ '/js/post.js'|media }}"></script>
+    {% endcompress %}
     {% if settings.EDITOR_TYPE == 'markdown' %}
         {% include "meta/markdown_javascript.html" %}
     {% endif %}
@@ -34,11 +37,6 @@
     <script type='text/javascript'>
         askbot['urls']['saveDraftQuestion'] = '{% url save_draft_question %}';
         askbot['messages']['userNamePrompt'] = '{% trans %}User name:{% endtrans %}';
-        {% if settings.ENABLE_MATHJAX or settings.MARKUP_CODE_FRIENDLY %}
-            var codeFriendlyMarkdown = true;
-        {% else %}
-            var codeFriendlyMarkdown = false;
-        {% endif %}
         (function() {
             var bodyTriggerLink = $('.question-body-trigger');
             if (bodyTriggerLink.length === 1) {
@@ -47,7 +45,7 @@
                 foldedEditor.decorate($('.folded-editor'));
             }
         })();
-        $().ready(function(){
+        $(document).ready(function(){
             //set current module button style
             $('#editor').TextAreaResizer();
             //highlight code synctax when editor has new text
@@ -74,7 +72,7 @@
 
             if (askbot['data']['userIsAuthenticated']) {
                 var draftHandler = new DraftQuestion();
-                draftHandler.decorate($(document));
+                draftHandler.decorate($('body'));
                 window.onbeforeunload = function() {
                     var saveHandler = draftHandler.getSaveHandler();
                     saveHandler(true);
@@ -85,5 +83,4 @@
         });
     </script>
 {% endblock %}
-
 <!-- end template ask.html -->

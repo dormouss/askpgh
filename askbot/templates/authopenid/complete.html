@@ -18,18 +18,19 @@ parameters:
 * openid_username_exists
 #}
 {% block head %}{% endblock %}
-{% block title %}{% spaceless %}{% trans %}Registration{% endtrans %}{% endspaceless %}{% endblock %}
+{% block title %}{% spaceless %}{% trans %}Complete registration{% endtrans %}{% endspaceless %}{% endblock %}
 {% block body_class %}registration-page{% endblock %}
 {% block content %}
-    <h1 class="section-title">{% trans %}User registration{% endtrans %}</h1>
-    {% if openid_register_form.errors %}
-        <ul class="errorlist">
-        {% for error in openid_register_form.non_field_errors() %}
-            <li>{{error}}</li>
-        {% endfor %}
-        </ul>
-    {% endif %}
-    <div class="login">
+<div class="flip-tabs">
+    <div class="login complete-registration flip-content flip-content-active">
+        <h1 class="section-title">{% trans %}Complete registration{% endtrans %}</h1>
+        {% if openid_register_form.errors %}
+            <ul class="errorlist">
+            {% for error in openid_register_form.non_field_errors() %}
+                <li>{{ error }}</li>
+            {% endfor %}
+            </ul>
+        {% endif %}
         <form 
             id="register-form"
             name="fregister" 
@@ -43,42 +44,69 @@ parameters:
             method="POST"
         >{% csrf_token %}
             {{ openid_register_form.next }}
-            <div class="form-row-vertical">
-                <label for="id_username">
-                    {%- trans %}<strong>Screen Name</strong> (<i>will be shown to others</i>){% endtrans %}
-                </label>
+            <div class="form-group">
                 {% if openid_register_form.username.errors %} 
                     <p class="error">{{ openid_register_form.username.errors|join(", ") }}</p>
                 {% endif %}
-                {{ openid_register_form.username }}
+                <input class="required login" id="id_username" 
+                    maxlength="255" name="username" tabindex="0" type="text"
+                    {% if openid_register_form.username.value() %}
+                        value="{{ openid_register_form.username.value() }}"
+                    {% endif %}
+                    placeholder="{% trans %}Choose a screen name{% endtrans %}"
+                >
             </div>
-            <div class="form-row-vertical margin-bottom">
-                <label for="id_email">
-                    {%- trans %}<strong>Email Address</strong> (<i>will <strong>not</strong> be shared with 
-anyone, must be valid</i>)
-                    {% endtrans -%}
-                </label>
+            <div class="form-group">
                 {% if openid_register_form.email.errors %} 
                     <p class="error">{{ openid_register_form.email.errors|join(", ") }}</p>
                 {% endif %}
-                {{ openid_register_form.email }}
+                <input class="required login" id="id_email" maxlength="200" 
+                    name="email" type="text"
+                    {% if openid_register_form.email.value() %}
+                        value="{{ openid_register_form.email.value() }}"
+                    {% endif %}
+                    placeholder="{% trans %}Email address{% endtrans %}"
+                >
             </div>
+            {% set tos_field = openid_register_form.terms_accepted %}
+            {% include "authopenid/tos_field.html" %}
+
+            {% if openid_register_form.recaptcha %}
+            <div class="form-row-vertical">
+                {{ macros.form_field_with_errors(openid_register_form.recaptcha ) }}
+            </div>
+            {% endif %}
             <div class="submit-row">
                 <input 
                     id="register-button"
                     type="submit"
-                    class="submit"
                     name="bnewaccount"
                     value="{% trans %}Signup{% endtrans %}"
                 />
             </div>
         </form>
     </div>
+    <div class="recover-account flip-content">
+        <h1 class="section-title">{% trans %}Recover account{% endtrans %}</h1>
+        {% include "authopenid/account_recovery_form.html" %}
+    </div>
+    <div class="flip-tab-controls">
+        <p class="flip-tab flip-tab-active" data-target=".recover-account">
+            <strong>{% trans %}Already have an account?{% endtrans %}</strong>
+            <a class="trigger">{% trans %}Recover it by email.{% endtrans %}</a>
+        </p>
+        <p class="flip-tab" data-target=".complete-registration">
+            <strong>{% trans %}Prefer to create a new account?{% endtrans %}</strong>
+            <a class="trigger">{% trans %}Return to registration.{% endtrans %}</a>
+        </p>
+    </div>
+</div>
 {% endblock %}
 <!-- end complete.html -->
 {% block endjs %}
     <script type="text/javascript">
         $('#id_username').focus();
     </script>
-    {{ macros.one_shot_form_js(form='#register-form', submit_button='#register-button') }}
+    <script type="text/javascript" src="{{ '/js/utils/flip_tabs.js'|media }}"></script>
+    {{ macros.one_shot_form_js(form="#register-form", submit_button="#register-button") }}
 {% endblock %}

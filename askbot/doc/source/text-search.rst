@@ -32,6 +32,11 @@ the corresponding entry in the
     Japanese language search in Postgresql requires installation
     of a "contrib" package called `textsearch_ja`
 
+.. note::
+    For Chinese language search you will have to get a PostgreSQL
+    extension from https://github.com/amutu/zhparser and create a 
+    search configuration called `chinese`.
+
 .. _solr-text-search:
 
 Solr full text search

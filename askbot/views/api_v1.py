@@ -9,6 +9,7 @@ from askbot import models
 from askbot.conf import settings as askbot_settings
 from askbot.search.state_manager import SearchState
 from askbot.utils.html import site_url
+from askbot.utils.functions import get_epoch_str
 
 def get_user_data(user):
     """get common data about the user"""
@@ -20,21 +21,25 @@ def get_user_data(user):
         'id': user.id,
         'avatar': avatar_url,
         'username': user.username,
-        'joined_at': user.date_joined.strftime('%s'),
-        'last_seen_at': user.last_seen.strftime('%s'),
+        'joined_at': get_epoch_str(user.date_joined),
+        'last_seen_at': get_epoch_str(user.last_seen),
         'reputation': user.reputation,
     }
 
 def get_question_data(thread):
     """returns data dictionary for a given thread"""
+    question_post = thread._question_post()
     datum = {
-        'added_at': thread.added_at.strftime('%s'),
-        'id': thread._question_post().id,
+        'added_at': get_epoch_str(thread.added_at),
+        'id': question_post.id,
         'answer_count': thread.answer_count,
+        'answer_ids': thread.get_answer_ids(),
+        'accepted_answer_id': thread.accepted_answer_id,
         'view_count': thread.view_count,
         'score': thread.score,
-        'last_activity_at': thread.last_activity_at.strftime('%s'),
+        'last_activity_at': get_epoch_str(thread.last_activity_at),
         'title': thread.title,
+        'summary': question_post.summary,
         'tags': thread.tagnames.strip().split(),
         'url': site_url(thread.get_absolute_url()),
     }
@@ -53,9 +58,10 @@ def info(request):
        Returns general data about the forum
     '''
     data = {}
-    data['answers'] = models.Post.objects.get_answers().count()
-    data['questions'] = models.Post.objects.get_questions().count()
-    data['comments'] = models.Post.objects.get_comments().count()
+    posts = models.Post.objects.filter(deleted=False)
+    data['answers'] = posts.filter(post_type='answer').count()
+    data['questions'] = posts.filter(post_type='question').count()
+    data['comments'] = posts.filter(post_type='comment').count()
     data['users'] = User.objects.filter(is_active=True).count()
 
     if askbot_settings.GROUPS_ENABLED:
@@ -64,7 +70,7 @@ def info(request):
         data['groups'] = 0
 
     json_string = simplejson.dumps(data)
-    return HttpResponse(json_string, mimetype='application/json')
+    return HttpResponse(json_string, content_type='application/json')
 
 def user(request, user_id):
     '''
@@ -72,11 +78,12 @@ def user(request, user_id):
     '''
     user = get_object_or_404(User, pk=user_id)
     data = get_user_data(user)
-    data['questions'] = models.Post.objects.get_questions(user).count()
-    data['answers'] = models.Post.objects.get_answers(user).count()
-    data['comments'] = models.Post.objects.filter(post_type='comment').count()
+    posts = models.Post.objects.filter(author=user, deleted=False)
+    data['answers'] = posts.filter(post_type='answer').count()
+    data['questions'] = posts.filter(post_type='question').count()
+    data['comments'] = posts.filter(post_type='comment').count()
     json_string = simplejson.dumps(data)
-    return HttpResponse(json_string, mimetype='application/json')
+    return HttpResponse(json_string, content_type='application/json')
 
 
 def users(request):
@@ -126,7 +133,7 @@ def users(request):
                 }
         json_string = simplejson.dumps(response_dict)
 
-        return HttpResponse(json_string, mimetype='application/json')
+        return HttpResponse(json_string, content_type='application/json')
 
 
 def question(request, question_id):
@@ -141,7 +148,7 @@ def question(request, question_id):
     )
     datum = get_question_data(post.thread)
     json_string = simplejson.dumps(datum)
-    return HttpResponse(json_string, mimetype='application/json')
+    return HttpResponse(json_string, content_type='application/json')
 
 
 def questions(request):
@@ -196,4 +203,4 @@ def questions(request):
         'questions': question_list
     }
     response_data = simplejson.dumps(ajax_data)
-    return HttpResponse(response_data, mimetype='application/json')
+    return HttpResponse(response_data, content_type='application/json')

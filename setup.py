@@ -47,7 +47,7 @@ setup(
         'Topic :: Communications',
         'Topic :: Internet :: WWW/HTTP :: WSGI :: Application',
     ],
-    long_description = """Askbot will work alone or with other django apps (with some limitations, please see below), Django 1.3.1 - 1.5.1, PostgresQL(recommended) (>=8.3) and MySQL(**) (MyISAM backend only - see footnote **)
+    long_description = """Askbot will work alone or with other django apps (with some limitations, please see below), Django 1.5-1.6, PostgresQL(recommended) (>=8.3) and MySQL(**) (MyISAM backend only - see footnote **)
 
 Questions? Suggestions? Found a bug? -> please post at http://askbot.org/en/questions/
 

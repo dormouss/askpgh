@@ -37,9 +37,10 @@ class ApiV1Tests(AskbotTestCase):
         self.assertEqual(expected_keys, set(response_data.keys()))
 
         expected_keys = set([
-                        'id', 'view_count', 'title', 'answer_count', 
+                        'id', 'view_count', 'title', 'answer_count', 'answer_ids', 
                         'last_activity_by', 'last_activity_at', 'author',
-                        'url', 'tags', 'added_at', 'score'
+                        'url', 'tags', 'added_at', 'score', 'summary', 
+                        'accepted_answer_id'
                     ])
         self.assertEqual(expected_keys, set(response_data['questions'][0].keys()))
 

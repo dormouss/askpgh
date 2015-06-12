@@ -44,7 +44,10 @@ class ManagementCommandTests(AskbotTestCase):
         user_two_pk = user_two.pk
         management.call_command('merge_users', user_one.id, user_two.id)
         # Check that the first user was deleted
-        self.assertEqual(models.User.objects.filter(pk=user_one.id).count(), 0)
+        self.assertEqual(
+            models.User.objects.get(pk=user_one.id).status,
+            'b'
+        )
         # Explicitly check that the values assigned to user_one are now user_two's
         self.assertEqual(user_two.posts.get_questions().filter(pk=question.id).count(), 1)
         self.assertEqual(user_two.posts.get_comments().filter(pk=comment.id).count(), 1)
@@ -128,3 +131,21 @@ class ManagementCommandTests(AskbotTestCase):
 
         print 'done create_tag_synonym_test'
         
+    def test_delete_unused_tags(self):
+
+        user = self.create_user()
+        question = self.post_question(user=user)
+
+        tag_count = models.Tag.objects.count()
+
+        #create some unused tags
+        self.create_tag("picasso", user)
+        self.create_tag("renoir", user)
+        self.create_tag("pissarro", user)
+
+        #check they're in the db
+        self.assertEqual(models.Tag.objects.count(), tag_count+3)
+        management.call_command('delete_unused_tags')
+
+        #now they should be removed
+        self.assertEqual(models.Tag.objects.count(), tag_count)

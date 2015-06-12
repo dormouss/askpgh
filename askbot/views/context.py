@@ -32,12 +32,11 @@ def get_for_inbox(user):
         return None
 
     #get flags count
-    flag_activity_types = (const.TYPE_ACTIVITY_MARK_OFFENSIVE,)
-    if askbot_settings.ENABLE_CONTENT_MODERATION:
-        flag_activity_types += (
-            const.TYPE_ACTIVITY_MODERATED_NEW_POST,
-            const.TYPE_ACTIVITY_MODERATED_POST_EDIT
-        )
+    flag_activity_types = (
+        const.TYPE_ACTIVITY_MARK_OFFENSIVE,
+        const.TYPE_ACTIVITY_MODERATED_NEW_POST,
+        const.TYPE_ACTIVITY_MODERATED_POST_EDIT
+    )
 
     #get group_join_requests_count
     group_join_requests_count = 0
@@ -48,10 +47,13 @@ def get_for_inbox(user):
                                         )
         group_join_requests_count = pending_memberships.count()
 
+    re_count = user.new_response_count + user.seen_response_count
+    flags_count = user.get_notifications(flag_activity_types).count()
     return {
-        're_count': user.new_response_count + user.seen_response_count,
-        'flags_count': user.get_notifications(flag_activity_types).count(),
-        'group_join_requests_count': group_join_requests_count
+        're_count': re_count,
+        'flags_count': flags_count,
+        'group_join_requests_count': group_join_requests_count,
+        'need_inbox_sections_nav': int(re_count > 0) + int(flags_count > 0) + int(group_join_requests_count) > 1
     }
 
 def get_extra(context_module_setting, request, data):

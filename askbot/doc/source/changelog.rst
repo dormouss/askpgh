@@ -1,8 +1,59 @@
 Changes in Askbot
 =================
 
-Development master branch (only on github)
-------------------------------------------
+Development version (not released)
+----------------------------------
+* Added management command `askbot_rebuild_avatars`
+
+0.7.53 (Apr 22, 2015)
+---------------------
+* Use prompt placeholders on all registration forms
+* Disable Google login by default because it is now OAuth2
+
+
+0.7.52 (Apr 19, 2015)
+---------------------
+* Added account recovery form to the "complete registration" page
+  to help prevent accidental creation of duplicate accounts
+* Support migration of Google OpenID accounts to G+
+* Added setting to allow comment updates show on the main page
+* Improved support of uploadable avatars
+* Added authentication via MediaWiki
+* Added option to specify `ASKBOT_QUESTION_TITLE_RENDERER` function
+* Added option to specify `ASKBOT_HTML_MODERATOR` function
+* Allowed reordering badges on the badges page via drag and drop
+* Added option to forbid commenting in closed questions
+* Added separate optional time limits to edit questions and answers
+* Added option to disable comments under questions or answers
+* Added management command `askbot_recount_badges`
+* Allowed adding custom badges via `ASKBOT_CUSTOM_BADGES` setting
+* Allowed enabling and disabling individual badges
+* Added "forbidden phrases" for the content moderation
+  Posts containing these will be rejected outright, without placement
+  on the moderation queue.
+* Added minimum reputation to delete own questions with answers
+* Added optional checkbox "accept terms of service"
+  which being enabled, requires users to read and agree
+  with the terms before signing up.
+* Added terms of service page
+* Allowed reverse ordering of comments
+
+0.7.51 (Dec 15, 2014)
+---------------------
+* Bug fixes
+
+0.7.50 (Nov 1, 2014)
+--------------------
+* Added email alert for moderators `askbot_send_moderation_alerts`
+* Implemented Google Plus login
+* Allowed localized site settings
+* Added management command `askbot_clear_moderation_queue`
+* Admins and Moderators can merge questions.
+* Improved moderation modes: flags, audit, premoderation. 
+  Watched user status, IP blocking, mass content removal.
+* Allow bulk deletion of user content simultaneously with blocking
+* Allow custom destination url under the logo
+* Option to allow asking without registration (Egil Moeller)
 * Implemented Mozilla Persona authentication
 * Allowed custom providers of gravatar service (michas2)
 * Allowed configurable custom OpenID login button

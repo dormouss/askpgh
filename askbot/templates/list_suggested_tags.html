@@ -74,5 +74,7 @@
     <script type="text/javascript">
         askbot['urls']['moderateSuggestedTag'] = '{% url "moderate_suggested_tag" %}';
     </script>
+    {% compress js %}
     <script type="text/javascript" src="{{ '/js/tag_moderation.js'|media }}"></script>
+    {% endcompress %}
 {% endblock %}

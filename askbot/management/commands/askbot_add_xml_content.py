@@ -352,7 +352,7 @@ class Command(BaseImportXMLCommand):
             old_tag_id = tag.id
             try:
                 #try to get existing tag with this name
-                tag = Tag.objects.get(name__iexact=tag.name)
+                tag = Tag.objects.get(name__iexact=tag.name, language_code=tag.language_code)
             except Tag.DoesNotExist:
                 tag.id = None
                 tag.tag_wiki = None
@@ -392,7 +392,7 @@ class Command(BaseImportXMLCommand):
                 tag_filter = Q(name__iexact=tag_names[0])
                 for tag_name in tag_names[1:]:
                     tag_filter |= Q(name__iexact=tag_name)
-                tags = Tag.objects.filter(tag_filter)
+                tags = Tag.objects.filter(tag_filter & Q(language_code=thread.language_code))
 
                 new_thread.tagnames = ' '.join([tag.name for tag in tags])
 

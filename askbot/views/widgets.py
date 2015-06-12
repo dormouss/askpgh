@@ -245,7 +245,7 @@ def render_ask_widget_js(request, widget_id):
         'variable_name': variable_name
     }
     content =  content_tpl.render(RequestContext(request, context_dict))
-    return HttpResponse(content, mimetype='text/javascript')
+    return HttpResponse(content, content_type='text/javascript')
 
 def render_ask_widget_css(request, widget_id):
     widget = get_object_or_404(models.AskWidget, pk=widget_id)
@@ -258,7 +258,7 @@ def render_ask_widget_css(request, widget_id):
         'variable_name': variable_name
     }
     content =  content_tpl.render(RequestContext(request, context_dict))
-    return HttpResponse(content, mimetype='text/css')
+    return HttpResponse(content, content_type='text/css')
 
 def question_widget(request, widget_id):
     """Returns the first x questions based on certain tags.

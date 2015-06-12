@@ -19,7 +19,10 @@
 {% endif %}
 
 {% if tags and settings.SIDEBAR_MAIN_SHOW_TAGS %}
+<div class="box">
+    <h2>{% trans %}Tags{% endtrans %}</h2>
     {% include "widgets/related_tags.html" %}
+</div>
 {% endif %}
 
 {% if 'SIDEBAR_MAIN_FOOTER'|show_block_to(request.user) %}

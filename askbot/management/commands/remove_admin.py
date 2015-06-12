@@ -41,5 +41,4 @@ class Command(NoArgsCommand):
         self.confirm_action()
         self.remove_signals()
 
-        self.user.remove_admin_status()
-        self.user.save()
+        self.user.set_status('a')

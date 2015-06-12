@@ -20,17 +20,8 @@ settings.register(
     livesettings.LongStringValue(
         USER_SETTINGS,
         'NEW_USER_GREETING',
-        default='',
+        default=_('Welcome to our community!'),
         description=_('On-screen greeting shown to the new users')
-    )
-)
-
-settings.register(
-    livesettings.BooleanValue(
-        USER_SETTINGS,
-        'ALLOW_ANONYMOUS_FEEDBACK',
-        default=True,
-        description=_('Allow anonymous users send feedback')
     )
 )
 

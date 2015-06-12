@@ -8,20 +8,24 @@
     <h3>{% trans username=view_user.username|escape, status=view_user.get_status_display() %}{{username}}'s current status is "{{status}}"{% endtrans %}
     </h3>
     {% if user_status_changed %}
-        <p class="action-status"><span>{% trans %}User status changed{% endtrans %}</span></p>
+        <p class="action-status"><span>{{ user_status_changed_message }}</span></p>
     {% endif %}
     <form method="post">{% csrf_token %}
         <input type="hidden" name="sort" value="moderate"/>
         <table class="form-as-table">
         {{ change_user_status_form.as_table() }}
         </table>
-        <p id="id_user_status_info">
+        <p id="id_user_status_info"></p>
+        <p>
+            <input type="submit" name="change_status" value="{% trans %}Change status{% endtrans %}" />
+            {% if not view_user.is_blocked() %}
+            <input type="submit" name="hard_block" value="{% trans %}Block user and delete all content{% endtrans %}" />
+            {% endif %}
         </p>
-        <input type="submit" class="submit" name="change_status" value="{% trans %}Save{% endtrans %}" />
     </form>
 {% endif %}
 <h3>
-{% if request.user == view_user %}
+{% if request.user.pk == view_user.pk %}
     {% trans reputation=view_user.reputation %}Your current reputation is {{reputation}} points{% endtrans %}
 {% else %}
     {% trans reputation=view_user.reputation %}User's current reputation is {{reputation}} points{% endtrans %}
@@ -35,8 +39,8 @@
     <table class="form-as-table">
     {{ change_user_reputation_form.as_table() }}
     </table>
-    <input type="submit" class="submit" name="subtract_reputation" value="{% trans %}Subtract{% endtrans %}" />&nbsp;
-    <input type="submit" class="submit" name="add_reputation" value="{% trans %}Add{% endtrans %}" />
+    <input type="submit" name="subtract_reputation" value="{% trans %}Subtract{% endtrans %}" />&nbsp;
+    <input type="submit" name="add_reputation" value="{% trans %}Add{% endtrans %}" />
 </form>
 {% if request.user != view_user %}
 <hr/>
@@ -61,7 +65,7 @@
     {% endif %}
     {{ send_message_form.body_text}}
     </div>
-    <input type="submit" class="submit" name="send_message" value="{% trans %}Send message{% endtrans %}" />
+    <input type="submit" name="send_message" value="{% trans %}Send message{% endtrans %}" />
 </form>
 {% endif %}
 {% endblock %}
@@ -89,5 +93,9 @@
                 $('#id_user_status_info').hide('slow');
             }
         })
+        $('input[name="hard_block"]').click(function() {
+            $('input[name="delete_content"]').val('true');
+            $('select[name="user_status"]').val('b');
+        });
     </script>
 {% endblock %}

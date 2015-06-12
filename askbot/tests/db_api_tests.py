@@ -718,3 +718,16 @@ class LinkPostingTests(AskbotTestCase):
         self.assert_no_link(question.html)
         self.edit_question(user=admin, question=question, body_text=text + ' ok')
         self.assert_has_link(question.html, 'http://wikipedia.org')
+
+
+class ForbiddenTextPostingTests(AskbotTestCase):
+    @with_settings(
+        FORBIDDEN_PHRASES='bad\tstuff'
+    )
+    def test_spam_question_fails(self):
+        user = self.create_user()
+        self.assertRaises(
+            ValueError,
+            self.post_question,
+            body_text='there is bad\n stuff'
+        )

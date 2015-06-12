@@ -28,13 +28,12 @@ def group_settings(request, group, template='livesettings/group_settings.html'):
         #editor = forms.customized_editor(settings)
 
         if request.method == 'POST':
-
             # Populate the form with user-submitted data
             data = request.POST.copy()
             form = forms.SettingsEditor(data, request.FILES, settings=settings)
             if form.is_valid():
                 for name, value in form.cleaned_data.items():
-                    group, key = name.split('__')
+                    group, key, lang = name.split('__')
                     cfg = mgr.get_config(group, key)
 
                     if isinstance(cfg, ImageValue):
@@ -44,7 +43,7 @@ def group_settings(request, group, template='livesettings/group_settings.html'):
                             continue
 
                     try:
-                        cfg.update(value)
+                        cfg.update(value, lang)
                         #message='Updated %s on %s' % (cfg.key, cfg.group.key)
                         #messages.success(request, message)
                         #the else if for the settings that are not updated.

@@ -1,17 +1,19 @@
-import datetime
-import time
-import urlparse
+from askbot.tests.utils import with_settings
 from bs4 import BeautifulSoup
-from django.test import TestCase
 from django.contrib.auth.models import User, Group
+from django.test import TestCase
+from group_messaging.models import LastVisitTime
 from group_messaging.models import Message
 from group_messaging.models import MessageMemo
 from group_messaging.models import SenderList
-from group_messaging.models import LastVisitTime
-from group_messaging.models import get_personal_group
 from group_messaging.models import create_personal_group
+from group_messaging.models import get_personal_group
+from group_messaging.models import get_unread_inbox_counter
 from group_messaging.views import ThreadsList
 from mock import Mock
+import datetime
+import time
+import urlparse
 
 MESSAGE_TEXT = 'test message text'
 
@@ -49,6 +51,16 @@ class GroupMessagingTests(TestCase):
     def create_thread_for_user(self, sender, recipient):
         group = get_personal_group(recipient)
         return self.create_thread(sender, [group])
+
+    def visit_thread(self, thread, user):
+        last_visit_time, created = LastVisitTime.objects.get_or_create(
+                                                user=user,
+                                                message=thread
+                                            )
+        last_visit_time.at = datetime.datetime.now()
+        last_visit_time.save()
+        time.sleep(1.5)
+        return last_visit_time
 
     def setup_three_message_thread(self, original_poster=None, responder=None):
         """talk in this order: sender, recipient, sender"""
@@ -96,13 +108,7 @@ class ViewsTests(GroupMessagingTests):
                             )
         self.assertEqual(context['threads_data'][root.id]['status'], 'new')
         #"visit" the thread: todo - make a method
-        last_visit_time, created = LastVisitTime.objects.get_or_create(
-                                                user=self.sender,
-                                                message=root
-                                            )
-        last_visit_time.at = datetime.datetime.now()
-        last_visit_time.save()
-        time.sleep(1.5)
+        self.visit_thread(root, self.sender)
 
         #response must show as "seen"
         context = self.get_view_context(
@@ -156,6 +162,7 @@ class ViewsTests(GroupMessagingTests):
         thread_data = context['threads_data'][thread_id]
         self.assertEqual(thread_data['status'], 'new')
 
+    @with_settings(APP_URL='http://localhost/')
     def test_emailed_message_url_works_for_post_recipient(self):
         root = self.create_thread_for_user(self.sender, self.recipient)
         from django.core.mail import outbox
@@ -167,9 +174,9 @@ class ViewsTests(GroupMessagingTests):
         self.client.login(user_id=self.recipient.id, method='force')
         response = self.client.get(parsed_url.path, url_data)
         dom = BeautifulSoup(response.content)
-        threads = dom.find_all('ul', attrs={'class': 'thread'})
+        threads = dom.find_all('ul', attrs={'class': 'js-thread'})
         self.assertEquals(len(threads), 1)
-        thread_lists = dom.find_all('table', attrs={'class': 'threads-list'})
+        thread_lists = dom.find_all('table', attrs={'class': 'js-thread-list'})
         self.assertEquals(len(thread_lists), 0)
 
     def test_sent_thread_is_visited_by_sender(self):
@@ -219,6 +226,34 @@ class ModelsTests(GroupMessagingTests):
         message = self.create_thread(self.sender, [group])
         senders = SenderList.objects.get_senders_for_user(self.recipient)
         self.assertEqual(set(senders), set([self.sender]))
+
+    def test_unread_counter_new_thread1(self):
+        counter = get_unread_inbox_counter(self.recipient)
+        self.assertEqual(counter.count, 0)
+
+        thread = self.create_thread_for_user(self.sender, self.recipient)
+        counter = get_unread_inbox_counter(self.recipient)
+        self.assertEqual(counter.count, 1)
+
+        counter = get_unread_inbox_counter(self.sender)
+        self.assertEqual(counter.count, 0)
+
+    def test_unread_counter_new_thread2(self):
+        thread = self.create_thread_for_user(self.sender, self.recipient)
+        thread.mark_as_seen(self.recipient)
+        counter = get_unread_inbox_counter(self.recipient)
+        self.assertEqual(counter.count, 0)
+
+        counter = get_unread_inbox_counter(self.sender)
+        self.assertEqual(counter.count, 0)
+
+    def test_recalculate_unread_counter(self):
+        thread = self.create_thread_for_user(self.sender, self.recipient)
+        counter = get_unread_inbox_counter(self.recipient)
+        counter.reset()
+        self.assertEqual(counter.count, 0)
+        counter.recalculate()
+        self.assertEqual(counter.count, 1)
 
     def test_create_thread_response(self):
         """create a thread with one response,

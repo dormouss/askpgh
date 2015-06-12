@@ -34,6 +34,10 @@ class ReputeAdmin(admin.ModelAdmin):
 class ActivityAdmin(admin.ModelAdmin):
     """  admin class"""
 
+class BadgeDataAdmin(admin.ModelAdmin):
+    """admin class for BadgeData"""
+admin.site.register(models.BadgeData)
+
 admin.site.register(models.Post)
 admin.site.register(models.Tag, TagAdmin)
 admin.site.register(models.Vote, VoteAdmin)

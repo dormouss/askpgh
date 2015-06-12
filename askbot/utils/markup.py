@@ -7,6 +7,7 @@ import re
 import logging
 from askbot import const
 from askbot.conf import settings as askbot_settings
+from askbot.utils.functions import split_phrases
 from askbot.utils.html import sanitize_html
 from askbot.utils.html import strip_tags
 from askbot.utils.html import urlize_html
@@ -209,3 +210,29 @@ def tinymce_input_converter(text):
     """tinymce input to production html converter"""
     text = urlize(text)
     return strip_tags(text, ['script', 'style', 'link'])
+
+def convert_text(text):
+    parser_type = askbot_settings.EDITOR_TYPE
+    if parser_type == 'plain-text':
+        return plain_text_input_converter(text)
+    elif parser_type == 'markdown':
+        return markdown_input_converter(text)
+    elif parser_type == 'tinymce':
+        return tinymce_input_converter(text)
+    else:
+        raise NotImplementedError
+
+def find_forbidden_phrase(text):
+    """returns string or None"""
+    def norm_text(t):
+        return ' '.join(t.split()).lower()
+
+    forbidden_phrases = askbot_settings.FORBIDDEN_PHRASES.strip()
+    text = norm_text(text)
+    if forbidden_phrases:
+        phrases = split_phrases(forbidden_phrases)
+        for phrase in phrases:
+            phrase = norm_text(phrase)
+            if phrase in text:
+                return phrase
+    return None

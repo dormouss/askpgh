@@ -311,6 +311,7 @@ class Command(BaseImportXMLCommand):
         for osqa_thread in self.get_objects_for_model('forum.question'):
             count += 1
             #todo: there must be code lated to set the commented values
+            lang = django_settings.LANGUAGE_CODE
             thread = Thread(
                 title=osqa_thread.title,
                 tagnames=osqa_thread.tagnames,
@@ -319,7 +320,7 @@ class Command(BaseImportXMLCommand):
                 #answer_count=thread.answer_count,
                 last_activity_at=osqa_thread.last_activity_at,
                 last_activity_by=self.get_imported_object_by_old_id(User, osqa_thread.last_activity_by),
-                language_code=django_settings.LANGUAGE_CODE,
+                language_code=lang,
                 #"closed" data is stored differently in OSQA
                 #closed_by=self.get_imported_object_by_old_id(User, thread.closed_by_id),
                 #closed=thread.closed,
@@ -339,7 +340,7 @@ class Command(BaseImportXMLCommand):
                 tag_filter = Q(name__iexact=tag_names[0])
                 for tag_name in tag_names[1:]:
                     tag_filter |= Q(name__iexact=tag_name)
-                tags = Tag.objects.filter(tag_filter)
+                tags = Tag.objects.filter(tag_filter & Q(language_code=lang))
 
                 thread.tagnames = ' '.join([tag.name for tag in tags])
 
@@ -416,9 +417,12 @@ class Command(BaseImportXMLCommand):
             post.save()
 
             #mark accepted answer
+            now = datetime.now()
             if osqa_node.node_type == 'answer':
                 if '(accepted)' in osqa_node.state_string:
                     post.thread.accepted_answer = post
+                    post.endorsed = True
+                    post.endorsed_at = now
                     post.thread.save()
 
 

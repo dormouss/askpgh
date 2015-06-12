@@ -1,4 +1,4 @@
-<div class="post question" data-post-id="{{ question.id }}">
+<div class="post js-question" data-post-id="{{ question.id }}">
     <div class="vote-buttons">
         {% include "question/question_vote_buttons.html" %}
 
@@ -13,6 +13,9 @@
             <div class="post-update-info-container">
                 {% include "question/question_author_info.html" %}
             </div>
+            {% if question.needs_moderation() %}
+                <p class="moderated">{% trans %}This post is awaiting moderation{% endtrans %}</p>
+            {% endif %}
             {{ question.summary }}
         </div>
         <div id="question-controls" class="post-controls">
@@ -24,6 +27,8 @@
             {% include "question/closed_question_info.html" %}
             {# ==== END: question/closed_question_info.html ==== #}
         {% endif %}
-        {% include "question/question_comments.html" %}
+        {% if settings.QUESTION_COMMENTS_ENABLED %}
+            {% include "question/question_comments.html" %}
+        {% endif %}
     </div>
 </div>

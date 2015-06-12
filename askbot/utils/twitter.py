@@ -8,5 +8,5 @@ class Twitter(OAuthConnection):
 
     def tweet(self, text, access_token=None):
         client = self.get_client(access_token)
-        body = urllib.urlencode({'status': text})
-        return self.send_request(client, self.tweet_url, 'POST', body=body)
+        params = {'status': text}
+        return self.send_request(client, self.tweet_url, 'POST', params=params)

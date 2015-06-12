@@ -17,7 +17,7 @@ class MergeUsersBaseCommand(BaseCommand):
     @transaction.commit_manually
     def handle(self, *arguments, **options):
         self.parse_arguments(*arguments)
-        
+
         for rel in User._meta.get_all_related_objects():
             sid = transaction.savepoint()
             try:
@@ -39,8 +39,8 @@ class MergeUsersBaseCommand(BaseCommand):
             transaction.commit()
 
         self.process_custom_user_fields()
-
         self.cleanup() 
+        transaction.commit()
 
     def cleanup(self):
         raise Exception, 'Not implemented'
@@ -89,5 +89,5 @@ class Command(MergeUsersBaseCommand):
 
     def cleanup(self):
         self.to_user.save()
-        self.from_user.delete()
+        self.from_user.set_status('b')
 
