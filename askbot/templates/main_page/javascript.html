@@ -6,10 +6,6 @@
         Hilite.exact = false;
         Hilite.elementid = "question-list";
         Hilite.debug_referrer = location.href;
-        {% if update_avatar_data == True %}
-            var today = new Date();{#add timestamp to prevent browser caching #}
-            $.getJSON('{% url user_update_has_custom_avatar %}?t=' + today.getTime());
-        {% endif %}
     });
 
     askbot['urls']['mark_interesting_tag'] = '{% url mark_interesting_tag %}';
@@ -40,6 +36,6 @@
     /*]]>*/
 </script>
 {% compress js %}
-<script type='text/javascript' src='{{"/js/editor.js"|media}}'></script>
-<script type='text/javascript' src='{{"/js/tag_selector.js"|media}}'></script>
+<script type="text/javascript" src="{{ '/jslib/editor.js'|media }}"></script>
+<script type="text/javascript" src="{{ '/js/tag_selector.js'|media }}"></script>
 {% endcompress %}

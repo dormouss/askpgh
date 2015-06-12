@@ -20,8 +20,8 @@
         {{tag_filter_selection_form}}
         </table>
         <div class="submit-row text-align-right">
-            <input type="submit" class="submit" name="save" value="{% trans %}Update{% endtrans %}"/>&nbsp;
-            <input type="submit" class="submit" name="stop_email" value="{% trans %}Stop Email{% endtrans %}"/>
+            <input type="submit" name="save" value="{% trans %}Update{% endtrans %}"/>&nbsp;
+            <input type="submit" name="stop_email" value="{% trans %}Stop Email{% endtrans %}"/>
         </div>
     </form>
     </div>
@@ -29,12 +29,12 @@
     {% if settings.MULTILINGUAL %}
     <h2>{% trans %}Subscribed languages{% endtrans %}</h2>
     <form
-        method="post" 
+        method="post"
         action="{% url user_select_languages view_user.id, view_user.username|slugify %}"
     >{% csrf_token %}
         <select multiple name="languages">
         {% for lang in settings.LANGUAGES_DICT %}
-            <option 
+            <option
                 value="{{ lang }}"
                 {% if lang in user_languages %}selected="selected"{% endif %}
             >{{ settings.LANGUAGES_DICT[lang] }}</option>
@@ -53,7 +53,7 @@
                     css_class = 'subscribed marked-tags special',
                 )
             }}
-            <br/>
+            <div class="clearfix"></div>
             <div class="inputs">
                 <input id="subscribedTagInput" autocomplete="off" type="text"/>
                 <input id="subscribedTagAdd" type="submit" value="{% trans %}add{% endtrans%}"/>
@@ -61,14 +61,19 @@
         </div>
     {%endif%}
 {% endblock %}
-{%block userjs%}
-  <script type='text/javascript'>
-    search = new FullTextSearch();
-    askbot['controllers'] = askbot['controllers'] || {}
-    askbot['controllers']['fullTextSearch'] = search;
-    askbot['urls']['mark_subscribed_tag'] = '{% url mark_subscribed_tag %}';
-    askbot['urls']['unmark_tag'] = '{% url unmark_tag %}';
-  </script>
-  <script type='text/javascript' src='{{"/js/tag_selector.js"|media}}'></script>
+{% block userjs %}
+    <script type='text/javascript'>
+        (function () {
+            var search = new FullTextSearch();
+            askbot['controllers'] = askbot['controllers'] || {};
+            askbot['controllers']['fullTextSearch'] = search;
+            askbot['urls']['mark_subscribed_tag'] = '{% url mark_subscribed_tag %}';
+            askbot['urls']['unmark_tag'] = '{% url unmark_tag %}';
+            askbot['settings']['tag_editor'] = '{{ tag_editor_settings|escapejs }}';
+        })();
+    </script>
+    {% compress js %}
+    <script type='text/javascript' src='{{ "/js/tag_selector.js"|media }}'></script>
+    {% endcompress %}
 {% endblock %}
 <!-- end user_email_subscriptions.html -->

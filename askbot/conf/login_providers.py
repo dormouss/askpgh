@@ -17,12 +17,15 @@ LOGIN_PROVIDERS = livesettings.ConfigurationGroup(
 settings.register(
     livesettings.BooleanValue(
         LOGIN_PROVIDERS,
-        'PASSWORD_REGISTER_SHOW_PROVIDER_BUTTONS',
-        default = True,
-        description=_('Show alternative login provider buttons on the password "Sign Up" page'),
+        'TERMS_CONSENT_REQUIRED',
+        default=False,
+        description=_('Acceptance of terms required at registration'),
+        help_text=settings.get_related_settings_info(('FLATPAGES', 'TERMS', True))
     )
 )
 
+#todo: remove this - we don't want the local login button
+#but instead always show the login/password field when used
 settings.register(
     livesettings.BooleanValue(
         LOGIN_PROVIDERS,
@@ -57,8 +60,17 @@ settings.register(
         LOGIN_PROVIDERS,
         'WORDPRESS_SITE_ICON',
         default='/images/logo.gif',
-        description=_('Upload your icon'),
+        description=_('WordPress login button image'),
         url_resolver=skin_utils.get_media_url
+    )
+)
+
+settings.register(
+    livesettings.BooleanValue(
+        LOGIN_PROVIDERS,
+        'SIGNIN_FEDORA_ENABLED',
+        default=False,
+        description=_('Enable Fedora OpenID login')
     )
 )
 
@@ -111,7 +123,9 @@ settings.register(
         'SIGNIN_CUSTOM_OPENID_ENDPOINT',
         default='http://example.com',
         description=_('Custom OpenID endpoint'),
-        help_text=_('Important: with the "username" mode must have a %%(username)s placeholder e.g. http://example.com/%%(username)s/'),
+        help_text=_('Important: with the "username" mode there must be a '
+                    '%%(username)s placeholder e.g. '
+                    'http://example.com/%%(username)s/'),
     )
 )
 
@@ -121,10 +135,12 @@ providers = (
     'Blogger',
     'ClaimID',
     'Facebook',
+    'Fedora',
     'Flickr',
-    'Google',
+    #'Google',
     'Mozilla Persona',
     'Twitter',
+    'MediaWiki',
     'LinkedIn',
     'LiveJournal',
     #'myOpenID',
@@ -138,9 +154,15 @@ providers = (
     'LaunchPad',
 )
 
-DISABLED_BY_DEFAULT = ('LaunchPad',)
+DISABLED_BY_DEFAULT = ('LaunchPad', 'Mozilla Persona')
 
-NEED_EXTRA_SETUP = ('Twitter', 'Facebook', 'LinkedIn', 'identi.ca',)
+NEED_EXTRA_SETUP = ('Google Plus', 'Twitter', 'MediaWiki', 'Facebook', 'LinkedIn', 'identi.ca',)
+
+GOOGLE_METHOD_CHOICES = (
+    ('openid', 'OpenID (deprecated)'),
+    ('google-plus', 'Google Plus'),
+    ('disabled', _('disable')),
+)
 
 for provider in providers:
     if provider == 'local':
@@ -167,3 +189,30 @@ for provider in providers:
             **kwargs
         )
     )
+
+    if provider == 'MediaWiki':
+        settings.register(
+            livesettings.ImageValue(
+                LOGIN_PROVIDERS,
+                'MEDIAWIKI_SITE_ICON',
+                default='/images/jquery-openid/mediawiki.png',
+                description=_('MediaWiki login button image'),
+                url_resolver=skin_utils.get_media_url
+            )
+        )
+
+
+    if provider == 'local':
+        #add Google settings here as one-off
+        settings.register(
+            livesettings.StringValue(
+                LOGIN_PROVIDERS,
+                'SIGNIN_GOOGLE_METHOD',
+                default='disabled',
+                choices=GOOGLE_METHOD_CHOICES,
+                description=_('Google login'),
+                help_text=_(
+                    'To enable Google-Plus login, OAuth keys are required in the "External keys" section'
+                )
+            )
+        )

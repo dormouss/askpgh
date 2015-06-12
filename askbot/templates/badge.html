@@ -16,11 +16,7 @@
     </div>
     <div class="clean"></div>
     <div id="award-list">
-        {{ macros.user_list(
-            badge_recipients,
-            karma_mode=settings.KARMA_MODE,
-            badges_mode=settings.BADGES_MODE
-        )}}
+        {{ macros.user_list(badge_recipients) }}
     </div>
 {% endblock %}
 <!-- end template badge.html -->

@@ -19,7 +19,7 @@ from django.http import HttpResponseNotAllowed
 from django.http import HttpResponseBadRequest
 from django.core.paginator import Paginator, EmptyPage, InvalidPage
 from django.template.loader import get_template
-from django.template import RequestContext
+from django.template import Context, RequestContext
 from django.utils import simplejson
 from django.utils.html import escape
 from django.utils.translation import ugettext as _
@@ -32,27 +32,27 @@ from django.contrib.humanize.templatetags import humanize
 from django.http import QueryDict
 from django.conf import settings as django_settings
 
-import askbot
-from askbot import exceptions
-from askbot.utils.diff import textDiff as htmldiff
-from askbot.forms import AnswerForm
-from askbot.forms import ShowQuestionForm
-from askbot.forms import GetUserItemsForm
-from askbot.forms import GetDataForPostForm
-from askbot.utils.loading import load_module
-from askbot import conf
-from askbot import models
-from askbot import schedules
-from askbot.models.tag import Tag
-from askbot import const
-from askbot.startup_procedures import domain_is_bad
-from askbot.utils import functions
-from askbot.utils.html import sanitize_html
-from askbot.utils.decorators import anonymous_forbidden, ajax_only, get_only
-from askbot.search.state_manager import SearchState, DummySearchState
-from askbot.templatetags import extra_tags
+from askbot import conf, const, exceptions, models, signals
 from askbot.conf import settings as askbot_settings
+from askbot.forms import AnswerForm
+from askbot.forms import GetDataForPostForm
+from askbot.forms import GetUserItemsForm
+from askbot.forms import ShowTagsForm
+from askbot.forms import ShowQuestionForm
+from askbot.models.post import MockPost
+from askbot.models.tag import Tag
+from askbot.search.state_manager import SearchState, DummySearchState
+from askbot.startup_procedures import domain_is_bad
+from askbot.templatetags import extra_tags
+from askbot.utils import functions
+from askbot.utils.decorators import anonymous_forbidden, ajax_only, get_only
+from askbot.utils.diff import textDiff as htmldiff
+from askbot.utils.html import sanitize_html
+from askbot.utils.loading import load_module
+from askbot.utils.translation import get_language_name
+from askbot.utils.url_utils import reverse_i18n
 from askbot.views import context
+import askbot
 
 # used in index page
 #todo: - take these out of const or settings
@@ -200,10 +200,21 @@ def questions(request, **kwargs):
             'questions': questions_html.replace('\n',''),
             'non_existing_tags': meta_data['non_existing_tags'],
         }
-        ajax_data['related_tags'] = [{
-            'name': escape(tag.name),
-            'used_count': humanize.intcomma(tag.local_used_count)
-        } for tag in related_tags]
+
+        related_tags_tpl = get_template('widgets/related_tags.html')
+        related_tags_data = {
+            'tags': related_tags,
+            'tag_list_type': tag_list_type,
+            'query_string': search_state.query_string(),
+            'search_state': search_state,
+            'language_code': translation.get_language(),
+        }
+        if tag_list_type == 'cloud':
+            related_tags_data['font_size'] = extra_tags.get_tag_font_size(related_tags)
+
+        ajax_data['related_tags_html'] = related_tags_tpl.render(
+            RequestContext(request, related_tags_data)
+        )
 
         #here we add and then delete some items
         #to allow extra context processor to work
@@ -252,10 +263,9 @@ def questions(request, **kwargs):
             'font_size' : extra_tags.get_tag_font_size(related_tags),
             'display_tag_filter_strategy_choices': conf.get_tag_display_filter_strategy_choices(),
             'email_tag_filter_strategy_choices': conf.get_tag_email_filter_strategy_choices(),
-            'update_avatar_data': schedules.should_update_avatar_data(request),
             'query_string': search_state.query_string(),
             'search_state': search_state,
-            'feed_url': context_feed_url,
+            'feed_url': context_feed_url
         }
 
         extra_context = context.get_extra(
@@ -272,19 +282,16 @@ def questions(request, **kwargs):
         #todo: move this out to a separate middleware
         if request.user.is_authenticated() and request.user.is_administrator():
             if domain_is_bad():
-                url = reverse(
-                    'group_settings',
-                    kwargs = {'group': 'QA_SITE_SETTINGS'}
-                )
-                url = url + '#id_QA_SITE_SETTINGS__APP_URL'
+                url = askbot_settings.get_setting_url('QA_SITE_SETTINGS', 'APP_URL')
                 msg = _(
-                    'Please go to '
-                    '<a href="%s">"settings->URLs, keywords and greetings"</a> '
+                    'Please go to Settings -> %s '
                     'and set the base url for your site to function properly'
                 ) % url
                 request.user.message_set.create(message=msg)
 
         return render(request, 'main_page.html', template_data)
+        #print datetime.datetime.now() - before
+        #return res
 
 
 def get_top_answers(request):
@@ -300,34 +307,35 @@ def get_top_answers(request):
                             'html': answers_html,
                             'num_answers': paginator.count}
                         )
-        return HttpResponse(json_string, mimetype='application/json')
+        return HttpResponse(json_string, content_type='application/json')
     else:
         return HttpResponseBadRequest()
 
 def tags(request):#view showing a listing of available tags - plain list
 
-    #1) Get parameters. This normally belongs to form cleaning.
-    post_data = request.GET
-    sortby = post_data.get('sort', 'used')
-    try:
-        page = int(post_data.get('page', '1'))
-    except ValueError:
-        page = 1
+    form = ShowTagsForm(request.REQUEST)
+    form.full_clean() #always valid
+    page = form.cleaned_data['page']
+    sort_method = form.cleaned_data['sort']
+    query = form.cleaned_data['query']
 
-    if sortby == 'name':
-        order_by = 'name'
-    else:
-        order_by = '-used_count'
-
-    query = post_data.get('query', '').strip()
     tag_list_type = askbot_settings.TAG_LIST_FORMAT
 
     #2) Get query set for the tags.
-    query_params = {'deleted': False}
+    query_params = {
+        'deleted': False,
+        'language_code': translation.get_language()
+    }
     if query != '':
         query_params['name__icontains'] = query
 
     tags_qs = Tag.objects.filter(**query_params).exclude(used_count=0)
+
+    if sort_method == 'name':
+        order_by = 'name'
+    else:
+        order_by = '-used_count'
+
 
     tags_qs = tags_qs.order_by(order_by)
 
@@ -336,8 +344,8 @@ def tags(request):#view showing a listing of available tags - plain list
         'active_tab': 'tags',
         'page_class': 'tags-page',
         'tag_list_type' : tag_list_type,
-        'stag' : query,
-        'tab_id' : sortby,
+        'query' : query,
+        'tab_id' : sort_method,
         'keywords' : query,
         'search_state': SearchState(*[None for x in range(8)])
     }
@@ -355,7 +363,7 @@ def tags(request):#view showing a listing of available tags - plain list
             'pages': objects_list.num_pages,
             'current_page_number': page,
             'page_object': tags,
-            'base_url' : reverse('tags') + '?sort=%s&amp;' % sortby
+            'base_url' : reverse('tags') + '?sort=%s&' % sort_method
         }
         paginator_context = functions.setup_paginator(paginator_data)
         data['paginator_context'] = paginator_context
@@ -373,7 +381,7 @@ def tags(request):#view showing a listing of available tags - plain list
         template_context = RequestContext(request, data)
         json_data = {'success': True, 'html': template.render(template_context)}
         json_string = simplejson.dumps(json_data)
-        return HttpResponse(json_string, mimetype='application/json')
+        return HttpResponse(json_string, content_type='application/json')
     else:
         return render(request, 'tags.html', data)
 
@@ -381,11 +389,13 @@ def tags(request):#view showing a listing of available tags - plain list
 def question(request, id):#refactor - long subroutine. display question body, answers and comments
     """view that displays body of the question and
     all answers to it
+
+    todo: convert this view into class
     """
     #process url parameters
     #todo: fix inheritance of sort method from questions
     #before = datetime.datetime.now()
-    form = ShowQuestionForm(request.GET)
+    form = ShowQuestionForm(request.REQUEST)
     form.full_clean()#always valid
     show_answer = form.cleaned_data['show_answer']
     show_comment = form.cleaned_data['show_comment']
@@ -433,10 +443,10 @@ def question(request, id):#refactor - long subroutine. display question body, an
     #redirect if slug in the url is wrong
     if request.path.split('/')[-2] != question_post.slug:
         logging.debug('no slug match!')
-        question_url = '?'.join((
-                            question_post.get_absolute_url(),
-                            urllib.urlencode(request.GET)
-                        ))
+        lang = translation.get_language()
+        question_url = question_post.get_absolute_url(language=lang)
+        if request.GET:
+            question_url += '?' + urllib.urlencode(request.GET)
         return HttpResponseRedirect(question_url)
 
 
@@ -498,24 +508,25 @@ def question(request, id):#refactor - long subroutine. display question body, an
     thread = question_post.thread
 
     if getattr(django_settings, 'ASKBOT_MULTILINGUAL', False):
-        if thread.language_code != translation.get_language():
+        request_lang = translation.get_language()
+        if request_lang != thread.language_code:
+            template = get_template('question/lang_switch_message.html')
+            message = template.render(Context({
+                'post_lang': get_language_name(thread.language_code),
+                'request_lang': get_language_name(request_lang),
+                'home_url': reverse_i18n(request_lang, 'questions')
+            }))
+            request.user.message_set.create(message=message)
             return HttpResponseRedirect(thread.get_absolute_url())
 
     logging.debug('answer_sort_method=' + unicode(answer_sort_method))
 
     #load answers and post id's->athor_id mapping
     #posts are pre-stuffed with the correctly ordered comments
-    updated_question_post, answers, post_to_author, published_answer_ids = thread.get_cached_post_data(
+    question_post, answers, post_to_author, published_answer_ids = thread.get_post_data_for_question_view(
                                 sort_method=answer_sort_method,
                                 user=request.user
                             )
-    question_post.set_cached_comments(
-        updated_question_post.get_cached_comments()
-    )
-
-
-    #Post.objects.precache_comments(for_posts=[question_post] + answers, visitor=request.user)
-
     user_votes = {}
     user_post_id_list = list()
     #todo: cache this query set, but again takes only 3ms!
@@ -528,7 +539,7 @@ def question(request, id):#refactor - long subroutine. display question body, an
         #we can avoid making this query by iterating through
         #already loaded posts
         user_post_id_list = [
-            id for id in post_to_author if post_to_author[id] == request.user.id
+            post_id for post_id in post_to_author if post_to_author[post_id] == request.user.id
         ]
 
     #resolve page number and comment number for permalinks
@@ -545,41 +556,17 @@ def question(request, id):#refactor - long subroutine. display question body, an
     page_objects = objects_list.page(show_page)
 
     #count visits
-    #import ipdb; ipdb.set_trace()
-    if functions.not_a_robot_request(request):
-        #todo: split this out into a subroutine
-        #todo: merge view counts per user and per session
-        #1) view count per session
-        update_view_count = False
-        if 'question_view_times' not in request.session:
-            request.session['question_view_times'] = {}
-
-        last_seen = request.session['question_view_times'].get(question_post.id, None)
-
-        if thread.last_activity_by_id != request.user.id:
-            if last_seen:
-                if last_seen < thread.last_activity_at:
-                    update_view_count = True
-            else:
-                update_view_count = True
-
-        request.session['question_view_times'][question_post.id] = \
-                                                    datetime.datetime.now()
-
-        #2) run the slower jobs in a celery task
-        from askbot import tasks
-        tasks.record_question_visit.delay(
-            question_post = question_post,
-            user_id = request.user.id,
-            update_view_count = update_view_count
-        )
+    signals.question_visited.send(None,
+                    request=request,
+                    question=question_post,
+                )
 
     paginator_data = {
         'is_paginated' : (objects_list.count > const.ANSWERS_PAGE_SIZE),
         'pages': objects_list.num_pages,
         'current_page_number': show_page,
         'page_object': page_objects,
-        'base_url' : request.path + '?sort=%s&amp;' % answer_sort_method,
+        'base_url' : request.path + '?sort=%s&' % answer_sort_method,
     }
     paginator_context = functions.setup_paginator(paginator_data)
 
@@ -613,7 +600,8 @@ def question(request, id):#refactor - long subroutine. display question body, an
     answer_form = answer_form_class(initial=initial, user=request.user)
 
     user_can_post_comment = (
-        request.user.is_authenticated() and request.user.can_post_comment()
+        request.user.is_authenticated() \
+        and request.user.can_post_comment(question_post)
     )
 
     new_answer_allowed = True
@@ -621,7 +609,7 @@ def question(request, id):#refactor - long subroutine. display question body, an
     if request.user.is_authenticated():
         if askbot_settings.LIMIT_ONE_ANSWER_PER_USER:
             for answer in answers:
-                if answer.author == request.user:
+                if answer.author_id == request.user.pk:
                     new_answer_allowed = False
                     previous_answer = answer
                     break
@@ -632,35 +620,36 @@ def question(request, id):#refactor - long subroutine. display question body, an
         group_read_only = False
 
     data = {
-        'is_cacheable': False,#is_cacheable, #temporary, until invalidation fix
-        'long_time': const.LONG_TIME,#"forever" caching
-        'page_class': 'question-page',
         'active_tab': 'questions',
+        'answer' : answer_form,
+        'answers' : page_objects.object_list,
+        'answer_count': thread.get_answer_count(request.user),
+        'blank_comment': MockPost(post_type='comment', author=request.user),#data for the js comment template
+        'category_tree_data': askbot_settings.CATEGORY_TREE,
+        'editor_is_unfolded': answer_form.has_data(),
+        'favorited' : favorited,
+        'group_read_only': group_read_only,
+        'is_cacheable': False,#is_cacheable, #temporary, until invalidation fix
+        'language_code': translation.get_language(),
+        'long_time': const.LONG_TIME,#"forever" caching
+        'new_answer_allowed': new_answer_allowed,
+        'oldest_answer_id': thread.get_oldest_answer_id(request.user),
+        'page_class': 'question-page',
+        'paginator_context' : paginator_context,
+        'previous_answer': previous_answer,
+        'published_answer_ids': published_answer_ids,
         'question' : question_post,
+        'show_comment': show_comment,
+        'show_comment_position': show_comment_position,
+        'show_post': show_post,
+        'similar_threads' : thread.get_similar_threads(),
+        'tab_id' : answer_sort_method,
         'thread': thread,
         'thread_is_moderated': thread.is_moderated(),
         'user_is_thread_moderator': thread.has_moderator(request.user),
-        'published_answer_ids': published_answer_ids,
-        'answer' : answer_form,
-        'editor_is_unfolded': answer_form.has_data(),
-        'answers' : page_objects.object_list,
-        'answer_count': thread.get_answer_count(request.user),
-        'category_tree_data': askbot_settings.CATEGORY_TREE,
         'user_votes': user_votes,
         'user_post_id_list': user_post_id_list,
         'user_can_post_comment': user_can_post_comment,#in general
-        'new_answer_allowed': new_answer_allowed,
-        'oldest_answer_id': thread.get_oldest_answer_id(request.user),
-        'previous_answer': previous_answer,
-        'tab_id' : answer_sort_method,
-        'favorited' : favorited,
-        'similar_threads' : thread.get_similar_threads(),
-        'language_code': translation.get_language(),
-        'paginator_context' : paginator_context,
-        'show_post': show_post,
-        'show_comment': show_comment,
-        'show_comment_position': show_comment_position,
-        'group_read_only': group_read_only,
     }
     #shared with ...
     if askbot_settings.GROUPS_ENABLED:
@@ -672,10 +661,18 @@ def question(request, id):#refactor - long subroutine. display question body, an
     data.update(extra)
 
     return render(request, 'question.html', data)
+    #print datetime.datetime.now() - before
+    #return res
 
 def revisions(request, id, post_type = None):
     assert post_type in ('question', 'answer')
     post = get_object_or_404(models.Post, post_type=post_type, id=id)
+
+    if post.deleted:
+        if request.user.is_anonymous() \
+            or not request.user.is_administrator_or_moderator():
+            raise Http404
+
     revisions = list(models.PostRevision.objects.filter(post=post))
     revisions.reverse()
     for i, revision in enumerate(revisions):
@@ -696,7 +693,6 @@ def revisions(request, id, post_type = None):
     }
     return render(request, 'revisions.html', data)
 
-@csrf.csrf_exempt
 @ajax_only
 @anonymous_forbidden
 @get_only
@@ -708,10 +704,15 @@ def get_comment(request):
     id = int(request.GET['id'])
     comment = models.Post.objects.get(post_type='comment', id=id)
     request.user.assert_can_edit_comment(comment)
-    return {'text': comment.text}
+
+    try:
+        #try to get suggested edit
+        rev = comment.revisions.get(revision=0)
+    except models.PostRevision.DoesNotExist:
+        rev = comment.get_latest_revision()
+    return {'text': rev.text}
 
 
-@csrf.csrf_exempt
 @ajax_only
 @anonymous_forbidden
 @get_only

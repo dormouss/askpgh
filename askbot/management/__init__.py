@@ -1,7 +1,7 @@
 import sys
 from django.core.management.base import NoArgsCommand
 from django.db import transaction
-from askbot.models import signals
+from askbot import signals
 from askbot.utils import console
 
 class NoArgsJob(NoArgsCommand):

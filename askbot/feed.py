@@ -16,7 +16,6 @@ from django.contrib.syndication.views import Feed
 
 import itertools
 
-from django.contrib.contenttypes.models import ContentType
 from django.core.urlresolvers import reverse
 from django.utils.translation import ugettext as _
 from django.core.exceptions import ObjectDoesNotExist

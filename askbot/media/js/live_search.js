@@ -1,43 +1,43 @@
-var SearchDropMenu = function() {
+var SearchDropMenu = function () {
     WrappedElement.call(this);
     this._data = undefined;
     this._selectedItemIndex = 0;
     this._askButtonEnabled = true;
-}
+};
 inherits(SearchDropMenu, WrappedElement);
 
-SearchDropMenu.prototype.setData = function(data) {
+SearchDropMenu.prototype.setData = function (data) {
     this._data = data;
 };
 
-SearchDropMenu.prototype.setAskHandler = function(handler) {
+SearchDropMenu.prototype.setAskHandler = function (handler) {
     this._askHandler = handler;
 };
 
-SearchDropMenu.prototype.setSearchWidget = function(widget) {
+SearchDropMenu.prototype.setSearchWidget = function (widget) {
     this._searchWidget = widget;
 };
 
-SearchDropMenu.prototype.getSearchWidget = function() {
+SearchDropMenu.prototype.getSearchWidget = function () {
     return this._searchWidget;
 };
 
-SearchDropMenu.prototype.setAskButtonEnabled = function(isEnabled) {
+SearchDropMenu.prototype.setAskButtonEnabled = function (isEnabled) {
     this._askButtonEnabled = isEnabled;
 };
 
 /**
  * assumes that data is already set
  */
-SearchDropMenu.prototype.render = function() {
+SearchDropMenu.prototype.render = function () {
     var list = this._resultsList;
     list.empty();
     var me = this;
-    $.each(this._data, function(idx, item) {
+    $.each(this._data, function (idx, item) {
         var listItem = me.makeElement('li');
         var link = me.makeElement('a');
-        link.attr('href', item['url']);
-        link.html(item['title']);
+        link.attr('href', item.url);
+        link.html(item.title);
         listItem.append(link);
         list.append(listItem);
     });
@@ -50,17 +50,17 @@ SearchDropMenu.prototype.render = function() {
     }
 };
 
-SearchDropMenu.prototype.clearSelectedItem = function() {
+SearchDropMenu.prototype.clearSelectedItem = function () {
     this._selectedItemIndex = 0;
     this._resultsList.find('li').removeClass('selected');
-}
+};
 
 /**
  * @param {number} idx position of item starting from 1 for the topmost
  * Selects item inentified by position.
  * Scrolls the list to make top of the item visible.
  */
-SearchDropMenu.prototype.selectItem = function(idx) {
+SearchDropMenu.prototype.selectItem = function (idx) {
     //idx is 1-based index
     this._selectedItemIndex = idx;
     var list = this._resultsList;
@@ -84,33 +84,33 @@ SearchDropMenu.prototype.selectItem = function(idx) {
         var itemSinkHeight = item.outerHeight() - itemPeepHeight;
         if (itemSinkHeight > 0) {
             list.scrollTop(curScrollTop + itemSinkHeight);
-        } 
+        }
     }
 
 };
 
-SearchDropMenu.prototype.getItem = function(idx) {
+SearchDropMenu.prototype.getItem = function (idx) {
     return $(this._resultsList.find('li')[idx - 1]);
 };
 
-SearchDropMenu.prototype.getItemCount = function() {
+SearchDropMenu.prototype.getItemCount = function () {
     return this._resultsList.find('li').length;
 };
 
-SearchDropMenu.prototype.getSelectedItemIndex = function() {
+SearchDropMenu.prototype.getSelectedItemIndex = function () {
     return this._selectedItemIndex;
 };
 
-SearchDropMenu.prototype.navigateToItem = function(idx) {
+SearchDropMenu.prototype.navigateToItem = function (idx) {
     var item = this.getItem(idx);
     if (item) {
         window.location.href = item.find('a').attr('href');
     }
 };
 
-SearchDropMenu.prototype.makeKeyHandler = function() {
+SearchDropMenu.prototype.makeKeyHandler = function () {
     var me = this;
-    return function(e) {
+    return function (e) {
         var keyCode = getKeyCode(e);
         if (keyCode === 27) {//escape
             me.hide();
@@ -150,13 +150,13 @@ SearchDropMenu.prototype.makeKeyHandler = function() {
                 widget.setFullTextSearchEnabled(false);
                 me.selectItem(curItem);
             }
-            return false
+            return false;
         }
     };
 };
 
 /** todo: change this to state management as >1 thing happens */
-SearchDropMenu.prototype.showWaitIcon = function() {
+SearchDropMenu.prototype.showWaitIcon = function () {
     if (this._askButtonEnabled) {
         this._waitIcon.show();
         this._footer.hide();
@@ -165,7 +165,7 @@ SearchDropMenu.prototype.showWaitIcon = function() {
     this._element.addClass('waiting');
 };
 
-SearchDropMenu.prototype.hideWaitIcon = function() {
+SearchDropMenu.prototype.hideWaitIcon = function () {
     if (this._askButtonEnabled) {
         this._waitIcon.hide();
         this._footer.show();
@@ -174,24 +174,24 @@ SearchDropMenu.prototype.hideWaitIcon = function() {
     this._element.removeClass('waiting');
 };
 
-SearchDropMenu.prototype.hideHeader = function() {
+SearchDropMenu.prototype.hideHeader = function () {
     if (this._header) {
         this._header.hide();
     }
 };
 
-SearchDropMenu.prototype.showHeader = function() {
+SearchDropMenu.prototype.showHeader = function () {
     if (this._header) {
         this._header.show();
     }
 };
 
-SearchDropMenu.prototype.createDom = function() {
+SearchDropMenu.prototype.createDom = function () {
     this._element = this.makeElement('div');
     this._element.addClass('search-drop-menu');
     this._element.hide();
 
-    if (askbot['data']['languageCode'] === 'ja') {
+    if (askbot.data.languageCode === 'ja') {
         var warning = this.makeElement('p');
         this._header = warning;
         warning.addClass('header');
@@ -216,8 +216,8 @@ SearchDropMenu.prototype.createDom = function() {
     if (this._askButtonEnabled) {
         footer.addClass('footer');
         var button = this.makeElement('button');
-        button.addClass('submit');
-        button.html(gettext('Ask Your Question'))
+        button.addClass('submit btn btn-default');
+        button.html(gettext('Ask Your Question'));
         footer.append(button);
         var handler = this._askHandler;
         setupButtonEventHandlers(button, handler);
@@ -226,14 +226,14 @@ SearchDropMenu.prototype.createDom = function() {
     $(document).keydown(this.makeKeyHandler());
 };
 
-SearchDropMenu.prototype.isOpen = function() {
+SearchDropMenu.prototype.isOpen = function () {
     return this._element.is(':visible');
 };
 
-SearchDropMenu.prototype.show = function() {
-    var searchBar = this._element.prev();
-    var searchBarHeight = searchBar.outerHeight();
-    var topOffset = searchBar.offset().top + searchBarHeight;
+SearchDropMenu.prototype.show = function () {
+    var searchBar = this.getSearchWidget();
+    var searchBarHeight = searchBar.getWidgetHeight();
+    var topOffset = searchBar.getElement().offset().top + searchBarHeight;
     this._element.show();//show so that size calcs work
     var footerHeight = this._footer.outerHeight();
     var windowHeight = $(window).height();
@@ -243,24 +243,24 @@ SearchDropMenu.prototype.show = function() {
     );
 };
 
-SearchDropMenu.prototype.hide = function() {
+SearchDropMenu.prototype.hide = function () {
     this._element.hide();
 };
 
-SearchDropMenu.prototype.reset = function() {
+SearchDropMenu.prototype.reset = function () {
     this._data = undefined;
     this._resultsList.empty();
     this._selectedItemIndex = 0;
     this._element.hide();
 };
 
-var TagWarningBox = function(){
+var TagWarningBox = function () {
     WrappedElement.call(this);
     this._tags = [];
 };
 inherits(TagWarningBox, WrappedElement);
 
-TagWarningBox.prototype.createDom = function(){
+TagWarningBox.prototype.createDom = function () {
     this._element = this.makeElement('div');
     this._element.css('display', 'block');
     this._element.css('margin', '0 0 13px 2px');
@@ -274,28 +274,28 @@ TagWarningBox.prototype.createDom = function(){
     this._element.hide();
 };
 
-TagWarningBox.prototype.clear = function(){
+TagWarningBox.prototype.clear = function () {
     this._tags = [];
-    if (this._tag_container){
+    if (this._tag_container) {
         this._tag_container.empty();
     }
     this._warning.hide();
     this._element.hide();
 };
 
-TagWarningBox.prototype.addTag = function(tag_name){
-   var tag = new Tag();
-   tag.setName(tag_name);
-   tag.setLinkable(false);
-   tag.setDeletable(false);
-   var elem = this.getElement();
-   this._tag_container.append(tag.getElement());
-   this._tag_container.css('display', 'block');
-   this._tags.push(tag);
-   elem.show();
+TagWarningBox.prototype.addTag = function (tag_name) {
+    var tag = new Tag();
+    tag.setName(tag_name);
+    tag.setLinkable(false);
+    tag.setDeletable(false);
+    var elem = this.getElement();
+    this._tag_container.append(tag.getElement());
+    this._tag_container.css('display', 'block');
+    this._tags.push(tag);
+    elem.show();
 };
 
-TagWarningBox.prototype.showWarning = function(){
+TagWarningBox.prototype.showWarning = function () {
     this._warning.html(
         ngettext(
             'Sorry, this tag does not exist',
@@ -310,35 +310,35 @@ TagWarningBox.prototype.showWarning = function(){
  * @constructor
  * tool tip to be shown on top of the search input
  */
-var InputToolTip = function() {
+var InputToolTip = function () {
     WrappedElement.call(this);
     this._promptText = gettext('search or ask your question');
 };
 inherits(InputToolTip, WrappedElement);
 
-InputToolTip.prototype.show = function() {
+InputToolTip.prototype.show = function () {
     this._element.removeClass('dimmed');
     this._element.show();
 };
 
-InputToolTip.prototype.hide = function() {
+InputToolTip.prototype.hide = function () {
     this._element.removeClass('dimmed');
     this._element.hide();
 };
 
-InputToolTip.prototype.dim = function() {
+InputToolTip.prototype.dim = function () {
     this._element.addClass('dimmed');
 };
 
-InputToolTip.prototype.setPromptText = function(text) {
+InputToolTip.prototype.setPromptText = function (text) {
     this._promptText = text;
 };
 
-InputToolTip.prototype.setClickHandler = function(handler) {
+InputToolTip.prototype.setClickHandler = function (handler) {
     this._clickHandler = handler;
 };
 
-InputToolTip.prototype.createDom = function() {
+InputToolTip.prototype.createDom = function () {
     var element = this.makeElement('div');
     this._element = element;
     element.addClass('input-tool-tip');
@@ -346,22 +346,22 @@ InputToolTip.prototype.createDom = function() {
     this.decorate(element);
 };
 
-InputToolTip.prototype.decorate = function(element) {
+InputToolTip.prototype.decorate = function (element) {
     this._element = element;
     var handler = this._clickHandler;
     var me = this;
-    element.click(function() { 
+    element.click(function () {
         handler();
         me.dim();
         return false;
     });
-    $(document).click(function() {
+    $(document).click(function () {
         if (element.css('display') === 'block') {
             element.removeClass('dimmed');
         }
     });
 };
-    
+
 
 /**
  * @constructor
@@ -369,13 +369,13 @@ InputToolTip.prototype.decorate = function(element) {
  * which re-draws contents of the main page
  * in response to the search query
  */
-var FullTextSearch = function() {
+var FullTextSearch = function () {
     WrappedElement.call(this);
     this._running = false;
-    this._baseUrl = askbot['urls']['questions'];
+    this._baseUrl = askbot.urls.questions;
     this._q_list_sel = 'question-list';//id of question listing div
     /** @todo: the questions/ needs translation... */
-    this._searchUrl = '/scope:all/sort:activity-desc/page:1/'
+    this._searchUrl = '/scope:all/sort:activity-desc/page:1/';
     this._askButtonEnabled = true;
     this._fullTextSearchEnabled = true;
 };
@@ -386,7 +386,7 @@ inherits(FullTextSearch, WrappedElement);
  * otherwise it is a getter
  * isRunning returns `true` when search is running
  */
-FullTextSearch.prototype.isRunning = function(val) {
+FullTextSearch.prototype.isRunning = function (val) {
     if (val === undefined) {
         return this._running;
     } else {
@@ -394,34 +394,34 @@ FullTextSearch.prototype.isRunning = function(val) {
     }
 };
 
-FullTextSearch.prototype.setAskButtonEnabled = function(isEnabled) {
+FullTextSearch.prototype.setAskButtonEnabled = function (isEnabled) {
     this._askButtonEnabled = isEnabled;
-}
+};
 
 /**
  * @param {{string}} url for the page displaying search results
  */
-FullTextSearch.prototype.setSearchUrl = function(url) {
+FullTextSearch.prototype.setSearchUrl = function (url) {
     this._searchUrl = url;
 };
 
-FullTextSearch.prototype.getSearchUrl = function() {
+FullTextSearch.prototype.getSearchUrl = function () {
     return this._searchUrl;
 };
 
-FullTextSearch.prototype.renderTagWarning = function(tag_list){
-    if ( !tag_list ) {
+FullTextSearch.prototype.renderTagWarning = function (tag_list) {
+    if (!tag_list) {
         return;
     }
     var tagWarningBox = this._tag_warning_box;
     tagWarningBox.clear();
-    $.each(tag_list, function(idx, tag_name){
+    $.each(tag_list, function (idx, tag_name) {
         tagWarningBox.addTag(tag_name);
     });
     tagWarningBox.showWarning();
 };
 
-FullTextSearch.prototype.runTagSearch = function() {
+FullTextSearch.prototype.runTagSearch = function () {
     var search_tags = $('#ab-tag-search').val().split(/\s+/);
     if (search_tags.length === 0) {
         return;
@@ -434,66 +434,66 @@ FullTextSearch.prototype.runTagSearch = function() {
     $.ajax({
         url: url,
         dataType: 'json',
-        success: function(data, text_status, xhr){
+        success: function (data, text_status, xhr) {
             me.renderFullTextSearchResult(data, text_status, xhr);
             $('#ab-tag-search').val('');
-        },
+        }
     });
     this.updateHistory(url);
 };
 
-FullTextSearch.prototype.updateHistory = function(url) {
+FullTextSearch.prototype.updateHistory = function (url) {
     var context = { state:1, rand:Math.random() };
-    History.pushState( context, "Questions", url );
-    setTimeout(function(){
-            /* HACK: For some weird reson, sometimes 
+    History.pushState(context, 'Questions', url);
+    setTimeout(function () {
+            /* HACK: For some weird reson, sometimes
              * overrides the above pushState so we re-aplly it
              * This might be caused by some other JS plugin.
              * The delay of 10msec allows the other plugin to override the URL.
              */
-            History.replaceState(context, "Questions", url);
+            History.replaceState(context, 'Questions', url);
         },
         10
     );
 };
 
-FullTextSearch.prototype.activateTagSearchInput = function() {
+FullTextSearch.prototype.activateTagSearchInput = function () {
     //the autocomplete is set up in tag_selector.js
     var button = $('#ab-tag-search-add');
-    if (button.length === 0){//may be absent
+    if (button.length === 0) {//may be absent
         return;
     }
     var me = this;
     var ac = new AutoCompleter({
-        url: askbot['urls']['get_tag_list'],
+        url: askbot.urls.get_tag_list,
         minChars: 1,
         useCache: true,
         matchInside: true,
         maxCacheLength: 100,
         maxItemsToShow: 20,
-        onItemSelect: function(){ me.runTagSearch(); },
+        onItemSelect: function () { me.runTagSearch(); },
         delay: 10
     });
     ac.decorate($('#ab-tag-search'));
     setupButtonEventHandlers(
         button,
-        function() { me.runTagSearch() }
+        function () { me.runTagSearch(); }
     );
 };
 
-FullTextSearch.prototype.sendTitleSearchQuery = function(query_text) {
+FullTextSearch.prototype.sendTitleSearchQuery = function (query_text) {
     this.isRunning(true);
     this._prevText = query_text;
     var data = {query_text: query_text};
     var me = this;
     $.ajax({
-        url: askbot['urls']['apiGetQuestions'],
+        url: askbot.urls.apiGetQuestions,
         data: data,
         dataType: 'json',
-        success: function(data, text_status, xhr){
+        success: function (data, text_status, xhr) {
             me.renderTitleSearchResult(data, text_status, xhr);
         },
-        complete: function(){
+        complete: function () {
             me.isRunning(false);
             me.evalTitleSearchQuery();
         },
@@ -502,11 +502,11 @@ FullTextSearch.prototype.sendTitleSearchQuery = function(query_text) {
 };
 
 
-FullTextSearch.prototype.sendFullTextSearchQuery = function(query_text) {
+FullTextSearch.prototype.sendFullTextSearchQuery = function (query_text) {
     this.isRunning(true);
     var searchUrl = this.getSearchUrl();
     var prevText = this._prevText;
-    if(!prevText && query_text && askbot['settings']['showSortByRelevance']) {
+    if (!prevText && query_text && askbot.settings.showSortByRelevance) {
         /* If there was no query but there is some
          * query now - and we support relevance search
          * - then switch to it
@@ -524,10 +524,10 @@ FullTextSearch.prototype.sendFullTextSearchQuery = function(query_text) {
     $.ajax({
         url: url,
         dataType: 'json',
-        success: function(data, text_status, xhr){
+        success: function (data, text_status, xhr) {
             me.renderFullTextSearchResult(data, text_status, xhr);
         },
-        complete: function(){
+        complete: function () {
             me.isRunning(false);
         },
         cache: false
@@ -535,18 +535,22 @@ FullTextSearch.prototype.sendFullTextSearchQuery = function(query_text) {
     this.updateHistory(url);
 };
 
-FullTextSearch.prototype.refresh = function() {
+FullTextSearch.prototype.refresh = function () {
     this.sendFullTextSearchQuery();/* used for tag search, maybe not necessary */
 };
 
-FullTextSearch.prototype.getSearchQuery = function() {
+FullTextSearch.prototype.getSearchQuery = function () {
     return $.trim(this._query.val());
+};
+
+FullTextSearch.prototype.getWidgetHeight = function () {
+    return this._element.outerHeight();
 };
 
 /**
  * renders title search result in the dropdown under the search input
  */
-FullTextSearch.prototype.renderTitleSearchResult = function(data) {
+FullTextSearch.prototype.renderTitleSearchResult = function (data) {
     var menu = this._dropMenu;
     menu.hideWaitIcon();
     if (data.length > 0) {
@@ -557,36 +561,36 @@ FullTextSearch.prototype.renderTitleSearchResult = function(data) {
     menu.show();
 };
 
-FullTextSearch.prototype.renderFullTextSearchResult = function(data) {
-    if (data['questions'].length === 0) {
+FullTextSearch.prototype.renderFullTextSearchResult = function (data) {
+    if (data.questions.length === 0) {
         return;
     }
 
-    $('#pager').toggle(data['paginator'] !== '').html(data['paginator']);
-    $('#questionCount').html(data['question_counter']);
-    this.renderSearchTags(data['query_data']['tags'], data['query_string']);
-    if(data['faces'].length > 0) {
+    $('#pager').toggle(data.paginator !== '').html(data.paginator);
+    $('#questionCount').html(data.question_counter);
+    this.renderSearchTags(data.query_data.tags, data.query_string);
+    if (data.faces.length > 0) {
         $('#contrib-users > a').remove();
-        $('#contrib-users').append(data['faces'].join(''));
+        $('#contrib-users').append(data.faces.join(''));
     }
-    this.renderRelatedTags(data['related_tags'], data['query_string']);
-    this.renderRelevanceSortTab(data['query_string']);
-    this.renderTagWarning(data['non_existing_tags']);
+    this.renderRelatedTags(data.related_tags_html);
+    this.renderRelevanceSortTab(data.query_string);
+    this.renderTagWarning(data.non_existing_tags);
     this.setActiveSortTab(
-        data['query_data']['sort_order'],
-        data['query_string']
+        data.query_data.sort_order,
+        data.query_string
     );
-    if(data['feed_url']){
+    if (data.feed_url) {
         // Change RSS URL
-        $("#ContentLeft a.rss:first").attr("href", data['feed_url']);
+        $('#ContentLeft a.rss:first').attr('href', data.feed_url);
     }
 
     // Patch scope selectors
     var baseUrl = this._baseUrl;
-    $('#scopeWrapper > a.scope-selector').each(function(index) {
+    $('#scopeWrapper > a.scope-selector').each(function (index) {
         var old_qs = $(this).attr('href').replace(baseUrl, '');
         var scope = QSutils.get_query_string_selector_value(old_qs, 'scope');
-        qs = QSutils.patch_query_string(data['query_string'], 'scope:' + scope);
+        qs = QSutils.patch_query_string(data.query_string, 'scope:' + scope);
         $(this).attr('href', baseUrl + qs);
     });
 
@@ -595,48 +599,47 @@ FullTextSearch.prototype.renderFullTextSearchResult = function(data) {
     var askHrefBase = askButton.attr('href').split('?')[0];
     askButton.attr(
         'href',
-        askHrefBase + data['query_data']['ask_query_string']
+        askHrefBase + data.query_data.ask_query_string
     ); /* INFO: ask_query_string should already be URL-encoded! */
 
     this._query.focus();
 
     var old_list = $('#' + this._q_list_sel);
-    var new_list = $('<div></div>').hide().html(data['questions']);
+    var new_list = $('<div></div>').hide().html(data.questions);
     new_list.find('.timeago').timeago();
 
     var q_list_sel = this._q_list_sel;
-    old_list.stop(true).after(new_list).fadeOut(200, function() {
+    old_list.stop(true).after(new_list).fadeOut(200, function () {
         //show new div with a fadeIn effect
         old_list.remove();
         new_list.attr('id', q_list_sel);
-        new_list.fadeIn(400);            
+        new_list.fadeIn(400);
     });
 };
 
-FullTextSearch.prototype.evalTitleSearchQuery = function() {
+FullTextSearch.prototype.evalTitleSearchQuery = function () {
     var cur_query = this.getSearchQuery();
     var prevText = this._prevText;
-    if (cur_query !== prevText && this.isRunning() === false){
-        if (cur_query.length >= askbot['settings']['minSearchWordLength']){
+    if (cur_query !== prevText && this.isRunning() === false) {
+        if (cur_query.length >= askbot.settings.minSearchWordLength) {
             this.sendTitleSearchQuery(cur_query);
-        } else if (cur_query.length === 0){
+        } else if (cur_query.length === 0) {
             this.reset();
         }
     }
 };
 
-FullTextSearch.prototype.reset = function() {
+FullTextSearch.prototype.reset = function () {
     this._prevText = '';
     this._dropMenu.reset();
     this._element.val('');
     this._element.focus();
     this._xButton.hide();
-    this._toolTip.show();
 };
 
-FullTextSearch.prototype.refreshXButton = function() {
-    if(this.getSearchQuery().length > 0){
-        if (this._query.hasClass('searchInput')){
+FullTextSearch.prototype.refreshXButton = function () {
+    if (this.getSearchQuery().length > 0) {
+        if (this._query.hasClass('searchInput')) {
             $('#searchBar').addClass('cancelable');
             this._xButton.show();
         }
@@ -646,7 +649,7 @@ FullTextSearch.prototype.refreshXButton = function() {
     }
 };
 
-FullTextSearch.prototype.updateQueryString = function(query_text) {
+FullTextSearch.prototype.updateQueryString = function (query_text) {
     if (query_text === undefined) { // handle missing parameter
         query_text = this.getSearchQuery();
     }
@@ -659,78 +662,69 @@ FullTextSearch.prototype.updateQueryString = function(query_text) {
     return query_text;
 };
 
-FullTextSearch.prototype.renderRelatedTags = function(tags, query_string){
-    if (tags.length === 0) return;
-
-    var html_list = [];
-    for (var i=0; i<tags.length; i++){
-        var tag = new Tag();
-        tag.setName(tags[i]['name']);
-        tag.setDeletable(false);
-        tag.setLinkable(true);
-        tag.setUrlParams(query_string);
-
-        html_list.push(tag.getElement().outerHTML());
-        html_list.push('<span class="tag-number">&#215; ');
-        html_list.push(tags[i]['used_count']);
-        html_list.push('</span>');
-        html_list.push('<br />');
-    }
-    $('#related-tags').html(html_list.join(''));
+FullTextSearch.prototype.renderRelatedTags = function (tags_html) {
+    $('.js-related-tags').html(tags_html);
 };
 
-FullTextSearch.prototype.renderSearchTags = function(tags, query_string){
+FullTextSearch.prototype.renderSearchTags = function (tags, query_string) {
     var search_tags = $('#searchTags');
     search_tags.empty();
     var me = this;
-    if (tags.length === 0){
+    if (tags.length === 0) {
         $('#listSearchTags').hide();
         $('#search-tips').hide();//wrong - if there are search users
     } else {
         $('#listSearchTags').show();
         $('#search-tips').show();
-        $.each(tags, function(idx, tag_name){
+        $.each(tags, function (idx, tag_name) {
+            var el;
             var tag = new Tag();
             tag.setName(tag_name);
             tag.setLinkable(false);
             tag.setDeletable(true);
             tag.setDeleteHandler(
-                function(){
+                function () {
                     me.removeSearchTag(tag_name, query_string);
                 }
             );
-            search_tags.append(tag.getElement());
+            el = tag.getElement();
+            // test if the Tag gets appended to a list
+            if (search_tags.prop('tagName') === 'UL') {
+                // wrap returns original element
+                el = el.wrap('<li></li>').parent();
+            }
+            search_tags.append(el);
         });
     }
 };
 
-FullTextSearch.prototype.createRelevanceTab = function(query_string){
+FullTextSearch.prototype.createRelevanceTab = function (query_string) {
     var relevance_tab = $('<a></a>');
     href = this._baseUrl + QSutils.patch_query_string(query_string, 'sort:relevance-desc');
     relevance_tab.attr('href', href);
     relevance_tab.attr('id', 'by_relevance');
     relevance_tab.html(
-        '<span>' + askbot['data']['sortButtonData']['relevance']['label'] + '</span>'
+        '<span>' + askbot.data.sortButtonData.relevance.label + '</span>'
     );
     return relevance_tab;
 };
 
-FullTextSearch.prototype.removeSearchTag = function(tag) {
-    var searchUrl = this.getSearchUrl()
+FullTextSearch.prototype.removeSearchTag = function (tag) {
+    var searchUrl = this.getSearchUrl();
     searchUrl = QSutils.remove_search_tag(searchUrl, tag);
     this.setSearchUrl(searchUrl);
     this.sendFullTextSearchQuery();
 };
 
-FullTextSearch.prototype.setActiveSortTab = function(sort_method, query_string){
+FullTextSearch.prototype.setActiveSortTab = function (sort_method, query_string) {
     var tabs = $('#sort_tabs > a');
     tabs.attr('class', 'off');
     var baseUrl = this._baseUrl;
-    tabs.each(function(index, element){
+    tabs.each(function (index, element) {
         var tab = $(element);
-        if ( tab.attr('id') ) {
-            var tab_name = tab.attr('id').replace(/^by_/,'');
-            if (tab_name in askbot['data']['sortButtonData']){
+        if (tab.attr('id')) {
+            var tab_name = tab.attr('id').replace(/^by_/, '');
+            if (tab_name in askbot.data.sortButtonData) {
                 href = baseUrl + QSutils.patch_query_string(
                                         query_string,
                                         'sort:' + tab_name + '-desc'
@@ -738,10 +732,10 @@ FullTextSearch.prototype.setActiveSortTab = function(sort_method, query_string){
                 tab.attr('href', href);
                 tab.attr(
                     'title',
-                    askbot['data']['sortButtonData'][tab_name]['desc_tooltip']
+                    askbot.data.sortButtonData[tab_name].desc_tooltip
                 );
                 tab.html(
-                    askbot['data']['sortButtonData'][tab_name]['label']
+                    askbot.data.sortButtonData[tab_name].label
                 );
             }
         }
@@ -749,60 +743,51 @@ FullTextSearch.prototype.setActiveSortTab = function(sort_method, query_string){
     var bits = sort_method.split('-', 2);
     var name = bits[0];
     var sense = bits[1];//sense of sort
-    var antisense = (sense == 'asc' ? 'desc':'asc');
-    var arrow = (sense == 'asc' ? ' &#9650;':' &#9660;');
+    var antisense = (sense === 'asc' ? 'desc' : 'asc');
+    var arrow = (sense === 'asc' ? ' &#9650;' : ' &#9660;');
     var active_tab = $('#by_' + name);
     active_tab.attr('class', 'on');
     active_tab.attr(
         'title',
-        askbot['data']['sortButtonData'][name][antisense + '_tooltip']
+        askbot.data.sortButtonData[name][antisense + '_tooltip']
     );
     active_tab.html(
-        askbot['data']['sortButtonData'][name]['label'] + arrow
+        askbot.data.sortButtonData[name].label + arrow
     );
 };
 
-FullTextSearch.prototype.renderRelevanceSortTab = function(query_string) {
-    if (askbot['settings']['showSortByRelevance'] === false){
+FullTextSearch.prototype.renderRelevanceSortTab = function (query_string) {
+    if (askbot.settings.showSortByRelevance === false) {
         return;
     }
     var relevance_tab = $('#by_relevance');
     var prevText = this._prevText;
-    if (prevText && prevText.length > 0){
-        if (relevance_tab.length == 0){
+    if (prevText && prevText.length > 0) {
+        if (relevance_tab.length === 0) {
             relevance_tab = this.createRelevanceTab(query_string);
             $('#sort_tabs>span').after(relevance_tab);
         }
     } else {
-        if (relevance_tab.length > 0){
+        if (relevance_tab.length > 0) {
             relevance_tab.remove();
         }
     }
 };
 
-FullTextSearch.prototype.makeAskHandler = function() {
+FullTextSearch.prototype.makeAskHandler = function () {
     var me = this;
-    return function() {
+    return function () {
         var query = me.getSearchQuery();
-        window.location.href = askbot['urls']['ask'] + '?title=' + query;
+        window.location.href = askbot.urls.ask + '?title=' + query;
         return false;
     };
 };
 
-FullTextSearch.prototype.updateToolTip = function() {
-    var query = this.getSearchQuery();
-    if (query === '') {
-        this._toolTip.show();
-    } else {
-        this._toolTip.hide();
-    }
-};
-
-FullTextSearch.prototype.setFullTextSearchEnabled = function(enabled) {
+FullTextSearch.prototype.setFullTextSearchEnabled = function (enabled) {
     this._fullTextSearchEnabled = enabled;
 };
 
-FullTextSearch.prototype.getFullTextSearchEnabled = function() {
+FullTextSearch.prototype.getFullTextSearchEnabled = function () {
     return this._fullTextSearchEnabled;
 };
 
@@ -812,13 +797,12 @@ FullTextSearch.prototype.getFullTextSearchEnabled = function() {
  * keyup is not good enough, because in that case
  * tooltip will be displayed with the input box simultaneously
  */
-FullTextSearch.prototype.makeKeyDownHandler = function() {
+FullTextSearch.prototype.makeKeyDownHandler = function () {
     var me = this;
-    var toolTip = this._toolTip;
     var xButton = this._xButton;
     var dropMenu = this._dropMenu;
     var formSubmitHandler = this.makeFormSubmitHandler();
-    return function(e) {//don't like the keyup delay to
+    return function (e) {//don't like the keyup delay to
         var keyCode = getKeyCode(e);
 
         if (keyCode === 27) {//escape key
@@ -836,14 +820,9 @@ FullTextSearch.prototype.makeKeyDownHandler = function() {
         }
 
         var query = me.getSearchQuery();
-        if (query.length === 0) {
-            if (keyCode !== 8 && keyCode !== 48) {//del and backspace
-                toolTip.hide();//hide tooltip
-            }
-        } else {
-            me.updateToolTip();
+        if (query.length) {
             me.refreshXButton();
-            var minQueryLength = askbot['settings']['minSearchWordLength'];
+            var minQueryLength = askbot.settings.minSearchWordLength;
             if (query.length === minQueryLength) {
                 if (keyCode !== 8 && keyCode !== 48) {//del and backspace
                     /* we get here if we were expanding the query
@@ -860,10 +839,10 @@ FullTextSearch.prototype.makeKeyDownHandler = function() {
     };
 };
 
-FullTextSearch.prototype.makeFormSubmitHandler = function() {
+FullTextSearch.prototype.makeFormSubmitHandler = function () {
     var me = this;
     var baseUrl = me._baseUrl;
-    return function(evt) {
+    return function (evt) {
         // if user clicks the button the s(h)e probably wants page reload,
         // so provide that experience but first update the query string
         me.updateQueryString();
@@ -873,35 +852,22 @@ FullTextSearch.prototype.makeFormSubmitHandler = function() {
     };
 };
 
-FullTextSearch.prototype.decorate = function(element) {
+FullTextSearch.prototype.decorate = function (element) {
     this._element = element;/* this is a bit artificial we don't use _element */
     this._query = element;
     this._xButton = $('input[name=reset_query]');
     this._prevText = this.getSearchQuery();
     this._tag_warning_box = new TagWarningBox();
 
-    var toolTip = new InputToolTip();
-    toolTip.setClickHandler(function() {
-        element.focus();
-    });
-
-    element.after(toolTip.getElement());
-
-    //below is called after getElement, b/c element must be defined
-    if (this._prevText !== '') {
-        toolTip.hide();//hide if search query is not empty
-    }
-    this._toolTip = toolTip;
-
     var dropMenu = new SearchDropMenu();
     dropMenu.setSearchWidget(this);
     dropMenu.setAskHandler(this.makeAskHandler());
     dropMenu.setAskButtonEnabled(this._askButtonEnabled);
     this._dropMenu = dropMenu;
-    element.parent().append(this._dropMenu.getElement());
+    $('div.search-bar').append(this._dropMenu.getElement());
 
-    $(element).click(function(e) { return false });
-    $(document).click(function() { dropMenu.reset(); });
+    $(element).click(function (e) { return false; });
+    $(document).click(function () { dropMenu.reset(); });
 
     //the tag search input is optional in askbot
     $('#ab-tag-search').parent().before(
@@ -909,16 +875,16 @@ FullTextSearch.prototype.decorate = function(element) {
     );
 
     // make search tags functional
-    var search_tags = $('#searchTags .tag-left');
+    var search_tags = $('#searchTags .js-tag');
     var searchUrl = this.getSearchUrl();
     var me = this;
-    $.each(search_tags, function(idx, element){
+    $.each(search_tags, function (idx, element) {
         var tag = new Tag();
         tag.decorate($(element));
         //todo: setDeleteHandler and setHandler
         //must work after decorate & must have getName
         tag.setDeleteHandler(
-            function(){
+            function () {
                 me.removeSearchTag(tag.getName(), searchUrl);
             }
         );
@@ -933,13 +899,12 @@ FullTextSearch.prototype.decorate = function(element) {
     // enable query box
     var main_page_eval_handle;
     this._query.keydown(this.makeKeyDownHandler());
-    this._query.keyup(function(e){
-        me.updateToolTip();
+    this._query.keyup(function (e) {
         me.refreshXButton();
-        if (me.isRunning() === false){
+        if (me.isRunning() === false) {
             clearTimeout(main_page_eval_handle);
             main_page_eval_handle = setTimeout(
-                function() { me.evalTitleSearchQuery() },
+                function () { me.evalTitleSearchQuery(); },
                 400
             );
         }
@@ -947,27 +912,27 @@ FullTextSearch.prototype.decorate = function(element) {
 
     this.activateTagSearchInput();
 
-    $("form#searchForm").submit(me.makeFormSubmitHandler());
+    $('form#searchForm').submit(me.makeFormSubmitHandler());
 };
 
 /**
  * @constructor
  */
-var TagSearch = function() {
+var TagSearch = function () {
     WrappedElement.call(this);
     this._isRunning = false;
 };
 inherits(TagSearch, WrappedElement);
 
-TagSearch.prototype.getQuery = function() {
+TagSearch.prototype.getQuery = function () {
     return $.trim(this._element.val());
 };
 
-TagSearch.prototype.setQuery = function(val) {
+TagSearch.prototype.setQuery = function (val) {
     this._element.val(val);
 };
 
-TagSearch.prototype.getSort = function() {
+TagSearch.prototype.getSort = function () {
     //todo: read it off the page
     var link = $('.tabBar a.on');
     if (link.length === 1) {
@@ -979,19 +944,19 @@ TagSearch.prototype.getSort = function() {
     return 'name';
 };
 
-TagSearch.prototype.getIsRunning = function() {
+TagSearch.prototype.getIsRunning = function () {
     return this._isRunning;
 };
 
-TagSearch.prototype.setIsRunning = function(val) {
+TagSearch.prototype.setIsRunning = function (val) {
     this._isRunning = val;
 };
 
-TagSearch.prototype.renderResult = function(html) {
+TagSearch.prototype.renderResult = function (html) {
     this._contentBox.html(html);
 };
 
-TagSearch.prototype.runSearch = function() {
+TagSearch.prototype.runSearch = function () {
     var query = this.getQuery();
     var data = {
         'query': query,
@@ -1003,10 +968,10 @@ TagSearch.prototype.runSearch = function() {
         dataType: 'json',
         data: data,
         cache: false,
-        url: askbot['urls']['tags'],
-        success: function(data) {
-            if (data['success']) {
-                me.renderResult(data['html']);
+        url: askbot.urls.tags,
+        success: function (data) {
+            if (data.success) {
+                me.renderResult(data.html);
                 me.setIsRunning(false);
                 //rerun if query changed meanwhile
                 if (query !== me.getQuery()) {
@@ -1014,18 +979,14 @@ TagSearch.prototype.runSearch = function() {
                 }
             }
         },
-        error: function() { me.setIsRunning(false); }
+        error: function () { me.setIsRunning(false); }
     });
     me.setIsRunning(true);
 };
 
-TagSearch.prototype.getToolTip = function() {
-    return this._toolTip;
-};
-
-TagSearch.prototype.makeKeyUpHandler = function() {
+TagSearch.prototype.makeKeyUpHandler = function () {
     var me = this;
-    return function(evt) {
+    return function (evt) {
         var keyCode = getKeyCode(evt);
         if (me.getIsRunning() === false) {
             me.runSearch();
@@ -1033,42 +994,37 @@ TagSearch.prototype.makeKeyUpHandler = function() {
     };
 };
 
-TagSearch.prototype.makeKeyDownHandler = function() {
+TagSearch.prototype.makeKeyDownHandler = function () {
     var me = this;
     var xButton = this._xButton;
-    return function(evt) {
+    return function (evt) {
         var query = me.getQuery();
         var keyCode = getKeyCode(evt);
-        var toolTip = me.getToolTip();
         if (keyCode === 27) {//escape
             me.setQuery('');
-            toolTip.show();
             xButton.hide();
             return;
         }
         if (keyCode === 8 || keyCode === 48) {//del or backspace
             if (query.length === 1) {
-                toolTip.show();
                 xButton.hide();
             }
         } else {
-            toolTip.hide();
             xButton.show();
         }
     };
 };
 
-TagSearch.prototype.reset = function() {
+TagSearch.prototype.reset = function () {
     if (this.getIsRunning() === false) {
         this.setQuery('');
-        this._toolTip.show();
         this._xButton.hide();
         this.runSearch();
         this._element.focus();
     }
 };
 
-TagSearch.prototype.decorate = function(element) {
+TagSearch.prototype.decorate = function (element) {
     this._element = element;
     this._contentBox = $('#ContentLeft');
     this._xButton = $('input[name=reset_query]');
@@ -1076,17 +1032,5 @@ TagSearch.prototype.decorate = function(element) {
     element.keydown(this.makeKeyDownHandler());
 
     var me = this;
-    this._xButton.click(function(){ me.reset() });
-
-    var toolTip = new InputToolTip();
-    toolTip.setPromptText(askbot['data']['tagSearchPromptText']);
-    toolTip.setClickHandler(function() {
-        element.focus();
-    });
-    element.after(toolTip.getElement());
-    //below is called after getElement, b/c element must be defined
-    if (this.getQuery() !== '') {
-        toolTip.hide();//hide if search query is not empty
-    }
-    this._toolTip = toolTip;
+    this._xButton.click(function () { me.reset(); });
 };

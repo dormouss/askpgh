@@ -11,11 +11,11 @@
 
         <br/>
 
-        {% if karma_mode == 'public' %}
+        {% if settings.KARMA_MODE == 'public' %}
         <span class="reputation-score">{{ user.reputation }}</span>
         {% endif %}
 
-        {% if badges_mode == 'public' %}
+        {% if settings.BADGES_MODE == 'public' %}
         <span class="badges" title="{{ user.get_badge_summary() }}">
             {% if user.gold %}
                 <span class='badge1'>&#9679;</span><span class="badgecount">{{ user.gold }}</span>

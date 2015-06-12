@@ -93,7 +93,7 @@ GERMANNIC_FAMILY = (
     'it', 'hu', 'hi', 'sv_SE', 'fi', 'he_IL', 'gl', 'es', 'bn_IN'
 )
 
-FRANCOID_FAMILY = ('fr', 'pt', 'pt_BR')
+FRANCOID_FAMILY = ('fr', 'pt', 'pt_BR', 'pt-br')
 
 SLAVIC_FAMILY = (
     'ru', 'sr', 'hr'

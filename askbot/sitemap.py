@@ -5,7 +5,10 @@ class QuestionsSitemap(Sitemap):
     changefreq = 'daily'
     priority = 0.5
     def items(self):
-        return Post.objects.get_questions().exclude(deleted=True)
+        questions = Post.objects.get_questions()
+        questions = questions.exclude(deleted=True)
+        questions = questions.exclude(approved=False)
+        return questions.select_related('thread__title', 'thread__last_activity_at')
 
     def lastmod(self, obj):
         return obj.thread.last_activity_at

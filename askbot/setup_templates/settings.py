@@ -9,8 +9,8 @@ import site
 ASKBOT_ROOT = os.path.abspath(os.path.dirname(askbot.__file__))
 site.addsitedir(os.path.join(ASKBOT_ROOT, 'deps'))
 
-DEBUG = True#set to True to enable debugging
-TEMPLATE_DEBUG = False#keep false when debugging jinja2 templates
+DEBUG = True  # set to True to enable debugging
+TEMPLATE_DEBUG = False  # keep false when debugging jinja2 templates
 INTERNAL_IPS = ('127.0.0.1',)
 ALLOWED_HOSTS = ['*',]#change this for better security on your site
 
@@ -158,6 +158,7 @@ TEMPLATE_CONTEXT_PROCESSORS = (
     'askbot.user_messages.context_processors.user_messages',#must be before auth
     'django.contrib.auth.context_processors.auth', #this is required for admin
     'django.core.context_processors.csrf', #necessary for csrf protection
+    'askbot.deps.group_messaging.context.group_messaging_context',
 )
 
 
@@ -309,12 +310,6 @@ GROUP_MESSAGING = {
 
 ASKBOT_MULTILINGUAL = False
 
-ASKBOT_CSS_DEVEL = False
-if 'ASKBOT_CSS_DEVEL' in locals() and ASKBOT_CSS_DEVEL == True:
-    COMPRESS_PRECOMPILERS = (
-        ('text/less', 'lessc {infile} {outfile}'),
-    )
-
 COMPRESS_JS_FILTERS = []
 COMPRESS_PARSER = 'compressor.parser.HtmlParser'
 JINJA2_EXTENSIONS = ('compressor.contrib.jinja2ext.CompressorExtension',)
@@ -324,3 +319,4 @@ JINJA2_EXTENSIONS = ('compressor.contrib.jinja2ext.CompressorExtension',)
 SOUTH_TESTS_MIGRATE = False
 
 VERIFIER_EXPIRE_DAYS = 3
+AVATAR_AUTO_GENERATE_SIZES = (16, 32, 48, 128)

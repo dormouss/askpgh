@@ -4,7 +4,7 @@ from django.contrib.auth.models import User
 from django.forms import EmailField, ValidationError
 from askbot.conf import settings as askbot_settings
 from askbot.deps.django_authopenid.models import UserAssociation
-from askbot.models.signals import user_registered
+from askbot.signals import user_registered
 from askbot.utils.loading import load_module
 
 LOG = logging.getLogger(__name__)

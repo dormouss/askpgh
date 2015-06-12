@@ -12,6 +12,7 @@ from django.utils.html import strip_tags
 from django.utils.datastructures import SortedDict
 from django.utils.translation import ugettext_lazy as _
 from django.utils.translation import ungettext_lazy, string_concat
+from django.utils.translation import get_language
 from django.utils.text import get_text_list
 from django.contrib.auth.models import User
 from django_countries import countries
@@ -22,6 +23,10 @@ from askbot.conf import settings as askbot_settings
 from askbot.conf import get_tag_display_filter_strategy_choices
 from tinymce.widgets import TinyMCE
 import logging
+
+def should_use_recaptcha(user):
+    """True if user must use recaptcha"""
+    return askbot_settings.USE_RECAPTCHA and (user.is_anonymous() or user.is_watched())
 
 
 def cleanup_dict(dictionary, key, empty_value):
@@ -140,25 +145,32 @@ def tag_strings_match(tag_string, mandatory_tag):
 
 
 
-COUNTRY_CHOICES = (('unknown', _('select country')),) + countries.COUNTRIES
-
-
 class CountryField(forms.ChoiceField):
     """this is better placed into the django_coutries app"""
 
     def __init__(self, *args, **kwargs):
         """sets label and the country choices
         """
-        kwargs['choices'] = kwargs.pop('choices', COUNTRY_CHOICES)
+        try:
+            country_choices = countries.COUNTRIES
+        except AttributeError:
+            from django_countries import data
+            country_choices = list()
+            for key, name in data.COUNTRIES.items():
+                country_choices.append((key, name))
+
+        country_choices = sorted(country_choices, cmp=lambda a,b: cmp(a[1], b[1]))
+
+        country_choices = (('unknown', _('select country')),) + tuple(country_choices)
+        kwargs['choices'] = kwargs.pop('choices', country_choices)
         kwargs['label'] = kwargs.pop('label', _('Country'))
         super(CountryField, self).__init__(*args, **kwargs)
 
     def clean(self, value):
         """Handles case of 'unknown' country selection
         """
-        if self.required:
-            if value == 'unknown':
-                raise forms.ValidationError(_('Country field is required'))
+        if self.required and value == 'unknown':
+            raise forms.ValidationError(_('Country field is required'))
         if value == 'unknown':
             return None
         return value
@@ -209,11 +221,40 @@ class CountedWordsField(forms.CharField):
         return value
 
 
+class AskbotRecaptchaField(RecaptchaField):
+    """A recaptcha field with preset keys from the livesettings"""
+    def __init__(self, *args, **kwargs):
+        kwargs.setdefault('private_key', askbot_settings.RECAPTCHA_SECRET)
+        kwargs.setdefault('public_key', askbot_settings.RECAPTCHA_KEY)
+        super(AskbotRecaptchaField, self).__init__(*args, **kwargs)
+
+
 class LanguageField(forms.ChoiceField):
 
     def __init__(self, *args, **kwargs):
         kwargs['choices'] = django_settings.LANGUAGES
+        kwargs['label'] = _('Select language')
         super(LanguageField, self).__init__(*args, **kwargs)
+
+
+class LanguageForm(forms.Form):
+    language = LanguageField()
+
+
+class LanguagePrefsForm(forms.Form):
+    languages = forms.MultipleChoiceField(
+                        widget=forms.CheckboxSelectMultiple,
+                        choices=django_settings.LANGUAGES,
+                        required=False
+                    )
+    primary_language = forms.ChoiceField(
+                        choices=django_settings.LANGUAGES
+                    )
+
+
+class TranslateUrlForm(forms.Form):
+    language = LanguageField()
+    url = forms.CharField(max_length=2048)
 
 
 class SuppressEmailField(forms.BooleanField):
@@ -305,9 +346,6 @@ class EditorField(forms.CharField):
             self.widget = forms.Textarea(attrs=widget_attrs)
         elif askbot_settings.EDITOR_TYPE == 'tinymce':
             self.widget = TinyMCE(attrs=widget_attrs, mce_attrs=editor_attrs)
-        self.label  = _('content')
-        self.help_text = u''
-        self.initial = ''
         self.min_length = 10
         self.post_term_name = _('post')
 
@@ -389,7 +427,10 @@ def clean_tag(tag_name, look_in_db=True):
         return tag_name
     else:
         from askbot import models
-        matching_tags = models.Tag.objects.filter(name__iexact=tag_name)
+        matching_tags = models.Tag.objects.filter(
+                                            name__iexact=tag_name,
+                                            language_code=get_language()
+                                        )
         if len(matching_tags) > 0:
             return matching_tags[0].name
         else:
@@ -483,6 +524,33 @@ class WikiField(forms.BooleanField):
     def clean(self, value):
         return value and askbot_settings.WIKI_ON
 
+
+class PageField(forms.IntegerField):
+
+    def __init__(self, *args, **kwargs):
+        self.required = False
+        super(PageField, self).__init__(*args, **kwargs)
+
+    def clean(self, value):
+        try:
+            value = int(value)
+            return value if value > 0 else 1
+        except (TypeError, ValueError):
+            return 1
+
+
+class SortField(forms.ChoiceField):
+    def __init__(self, *args, **kwargs):
+        self.default = kwargs.pop('default', '')
+        super(SortField, self).__init__(*args, **kwargs)
+
+    def clean(self, value):
+        value = value or self.default
+        if value not in dict(self.choices).keys():
+            value = self.default
+        return value
+
+
 class SummaryField(forms.CharField):
 
     def __init__(self, *args, **kwargs):
@@ -495,9 +563,10 @@ class SummaryField(forms.CharField):
         self.label = _('update summary:')
         self.help_text = _(
             'enter a brief summary of your revision (e.g. '
-            'fixed spelling, grammar, improved style, this '
-            'field is optional)'
+            'fixed spelling, grammar, improved style...), this '
+            'field is optional'
         )
+
 
 class EditorForm(forms.Form):
     """form with one field - `editor`
@@ -531,8 +600,11 @@ class ShowQuestionForm(forms.Form):
     """
     answer = forms.IntegerField(required=False)
     comment = forms.IntegerField(required=False)
-    page = forms.IntegerField(required=False)
-    sort = forms.CharField(required=False)
+    page = PageField()
+    sort = SortField(
+                choices=const.ANSWER_SORT_METHODS,
+                default=const.DEFAULT_ANSWER_SORT_METHOD
+            )
 
     def get_pruned_data(self):
         nones = ('answer', 'comment', 'page')
@@ -572,6 +644,31 @@ class ShowQuestionForm(forms.Form):
         return out_data
 
 
+class ShowTagsForm(forms.Form):
+    page = PageField()
+    sort = SortField(
+                    choices=const.TAGS_SORT_METHODS,
+                    default=const.DEFAULT_TAGS_SORT_METHOD
+                )
+    query = forms.CharField(required=False)
+
+
+class ShowUsersForm(forms.Form):
+    page = PageField()
+    sort = SortField(
+                    choices=const.USER_SORT_METHODS,
+                    default=const.DEFAULT_USER_SORT_METHOD
+                )
+    query = forms.CharField(required=False)
+
+    def clean_sort(self):
+        sort_method = self.cleaned_data['sort'] 
+        if sort_method == 'reputation' and askbot_settings.KARMA_MODE == 'private':
+            self.cleaned_data['sort'] = 'newest'
+        return self.cleaned_data['sort']
+
+
+
 class ChangeUserReputationForm(forms.Form):
     """Form that allows moderators and site administrators
     to adjust reputation of users.
@@ -582,11 +679,12 @@ class ChangeUserReputationForm(forms.Form):
 
     user_reputation_delta = forms.IntegerField(
                             min_value=1,
+                            max_value=32767,
                             label=_(
                                 'Enter number of points to add or subtract'
                             )
                         )
-    comment = forms.CharField(max_length=128)
+    comment = forms.CharField(label=_('Comment'), max_length=128)
 
     def clean_comment(self):
         if 'comment' in self.cleaned_data:
@@ -624,6 +722,7 @@ class ChangeUserStatusForm(forms.Form):
     """
 
     user_status = forms.ChoiceField(label=_('Change status to'))
+    delete_content = forms.CharField(widget=forms.HiddenInput, initial='false')
 
     def __init__(self, *arg, **kwarg):
 
@@ -659,6 +758,15 @@ class ChangeUserStatusForm(forms.Form):
         self.fields['user_status'].default = 'select'
         self.moderator = moderator
         self.subject = subject
+
+    def clean_delete_content(self):
+        delete = self.cleaned_data.get('delete_content', False)
+        if delete == 'true':
+            delete = True
+        else:
+            delete = False
+        self.cleaned_data['delete_content'] = delete
+        return self.cleaned_data['delete_content']
 
     def clean(self):
         #if moderator is looking at own profile - do not
@@ -701,6 +809,10 @@ class ChangeUserStatusForm(forms.Form):
                     ) % {'username': self.subject.username}
                 raise forms.ValidationError(msg)
 
+            if user_status not in ('s', 'b'):#not blocked or suspended
+                if self.cleaned_data['delete_content'] == True:
+                    self.cleaned_data['delete_content'] = False
+
         return self.cleaned_data
 
 
@@ -717,13 +829,6 @@ class SendMessageForm(forms.Form):
                         )
 
 
-class NotARobotForm(forms.Form):
-    recaptcha = RecaptchaField(
-                    private_key=askbot_settings.RECAPTCHA_SECRET,
-                    public_key=askbot_settings.RECAPTCHA_KEY
-                )
-
-
 class FeedbackForm(forms.Form):
     name = forms.CharField(label=_('Your name (optional):'), required=False)
     email = forms.EmailField(label=_('Email:'), required=False)
@@ -737,30 +842,32 @@ class FeedbackForm(forms.Form):
     )
     next = NextUrlField()
 
-    def __init__(self, is_auth=False, *args, **kwargs):
+    def __init__(self, user=None, *args, **kwargs):
         super(FeedbackForm, self).__init__(*args, **kwargs)
-        self.is_auth = is_auth
-        if not is_auth:
-            if askbot_settings.USE_RECAPTCHA:
-                self._add_recaptcha_field()
+        self.user = user
+        if should_use_recaptcha(user):
+            self.fields['recaptcha'] = AskbotRecaptchaField()
 
-    def _add_recaptcha_field(self):
-        self.fields['recaptcha'] = RecaptchaField(
-                            private_key=askbot_settings.RECAPTCHA_SECRET,
-                            public_key=askbot_settings.RECAPTCHA_KEY
-                        )
     def clean_message(self):
         message = self.cleaned_data.get('message', '').strip()
         if not message:
             raise forms.ValidationError(_('Message is required'))
         return message
 
+    def clean_name(self):
+        name = self.cleaned_data.get('name', '').strip()
+        if not name:
+            name = _('Anonymous')
+        self.cleaned_data['name'] = name
+        return name
+
     def clean(self):
         super(FeedbackForm, self).clean()
-        if not self.is_auth:
-            if not self.cleaned_data['no_email'] \
-                and not self.cleaned_data['email']:
-                msg = _('Please mark "I dont want to give my mail" field.')
+        if self.user and self.user.is_anonymous():
+            need_email = not bool(self.cleaned_data.get('no_email', False))
+            email = self.cleaned_data.get('email', '').strip()
+            if need_email and email == '':
+                msg = _('Either provide email address or mark "I dont want to give email below"')
                 self._errors['email'] = self.error_class([msg])
 
         return self.cleaned_data
@@ -924,19 +1031,27 @@ class AskForm(PostAsSomeoneForm, PostPrivatelyForm):
         super(AskForm, self).__init__(*args, **kwargs)
         #it's important that this field is set up dynamically
         self.fields['title'] = TitleField()
-        self.fields['text'] = QuestionEditorField(user=user)
+
+        if askbot_settings.MIN_QUESTION_BODY_LENGTH == 0:
+            label = _('Add details (optional)')
+        else:
+            label = _('Add details')
+
+        self.fields['text'] = QuestionEditorField(user=user, label=label)
 
         self.fields['ask_anonymously'] = forms.BooleanField(
             label=_('post anonymously'),
-            required=False,
+            required=False
         )
 
-        #hide ask_anonymously field
+        if user.is_anonymous() or not askbot_settings.ALLOW_ASK_ANONYMOUSLY:
+            self.hide_field('ask_anonymously')
+
         if getattr(django_settings, 'ASKBOT_MULTILINGUAL', False):
             self.fields['language'] = LanguageField()
 
-        if askbot_settings.ALLOW_ASK_ANONYMOUSLY is False:
-            self.hide_field('ask_anonymously')
+        if should_use_recaptcha(user):
+            self.fields['recaptcha'] = AskbotRecaptchaField()
 
     def clean_ask_anonymously(self):
         """returns false if anonymous asking is not allowed
@@ -944,7 +1059,6 @@ class AskForm(PostAsSomeoneForm, PostPrivatelyForm):
         if askbot_settings.ALLOW_ASK_ANONYMOUSLY is False:
             self.cleaned_data['ask_anonymously'] = False
         return self.cleaned_data['ask_anonymously']
-
 
 ASK_BY_EMAIL_SUBJECT_HELP = _(
     'Subject line is expected in the format: '
@@ -965,7 +1079,7 @@ class AskWidgetForm(forms.Form, FormWithHideableFields):
         super(AskWidgetForm, self).__init__(*args, **kwargs)
         self.fields['title'] = TitleField()
         #hide ask_anonymously field
-        if not askbot_settings.ALLOW_ASK_ANONYMOUSLY:
+        if user.is_anonymous() or not askbot_settings.ALLOW_ASK_ANONYMOUSLY:
             self.hide_field('ask_anonymously')
         self.fields['text'] = QuestionEditorField(user=user)
         if not include_text:
@@ -973,6 +1087,9 @@ class AskWidgetForm(forms.Form, FormWithHideableFields):
             #hack to make it validate
             self.fields['text'].required = False
             self.fields['text'].min_length = 0
+
+        if should_use_recaptcha(user):
+            self.fields['recaptcha'] = AskbotRecaptchaField()
 
 class CreateAskWidgetForm(forms.Form, FormWithHideableFields):
     title =  forms.CharField(max_length=100)
@@ -1117,7 +1234,12 @@ class AnswerForm(PostAsSomeoneForm, PostPrivatelyForm):
 
     def __init__(self, *args, **kwargs):
         super(AnswerForm, self).__init__(*args, **kwargs)
-        self.fields['text'] = AnswerEditorField(user=kwargs['user'])
+        user = kwargs['user']
+        #empty label on purpose
+        self.fields['text'] = AnswerEditorField(label='', user=user)
+
+        if should_use_recaptcha(user):
+            self.fields['recaptcha'] = AskbotRecaptchaField()
 
     def has_data(self):
         """True if form is bound or has inital data"""
@@ -1132,10 +1254,10 @@ class AnswerForm(PostAsSomeoneForm, PostPrivatelyForm):
         return len(stripped_text) > 0
 
     #People can override this function to save their additional fields to db
-    def save(self, question, user):
+    def save(self, question, user, ip_addr=None):
         wiki = self.cleaned_data['wiki']
         text = self.cleaned_data['text']
-        is_private = self.cleaned_data['post_privately']        
+        is_private = self.cleaned_data['post_privately']
 
         return user.post_answer(
             question = question,
@@ -1143,6 +1265,7 @@ class AnswerForm(PostAsSomeoneForm, PostPrivatelyForm):
             wiki = wiki,
             is_private = is_private,
             timestamp = datetime.datetime.now(),
+            ip_addr=ip_addr
         )
 
 class VoteForm(forms.Form):
@@ -1206,10 +1329,6 @@ class EditQuestionForm(PostAsSomeoneForm, PostPrivatelyForm):
     tags = TagNamesField()
     summary = SummaryField()
     wiki = WikiField()
-    reveal_identity = forms.BooleanField(
-        label=_('reveal identity'),
-        required=False,
-    )
     suppress_email = SuppressEmailField()
 
     #todo: this is odd that this form takes question as an argument
@@ -1224,18 +1343,33 @@ class EditQuestionForm(PostAsSomeoneForm, PostPrivatelyForm):
         self.fields['title'] = TitleField()
         self.fields['title'].initial = revision.title
         self.fields['text'].initial = revision.text
+        self.fields['text'].label = _('Details')
         self.fields['tags'].initial = revision.tagnames
         self.fields['wiki'].initial = self.question.wiki
         #hide the reveal identity field
-        if not self.can_stay_anonymous():
-            self.hide_field('reveal_identity')
+        if self.can_edit_anonymously():
+            self.fields['reveal_identity'] = forms.BooleanField(
+                                                    label=_('remove anonymity'),
+                                                    required=False,
+                                                )
 
         if getattr(django_settings, 'ASKBOT_MULTILINGUAL', False):
             self.fields['language'] = LanguageField()
 
+        if should_use_recaptcha(self.user):
+            self.fields['recaptcha'] = AskbotRecaptchaField()
+
+
+    def clean(self):
+        edit_anonymously = not self.cleaned_data.get('reveal_identity', True)
+        self.cleaned_data['edit_anonymously'] = edit_anonymously
+        return self.cleaned_data
+
+
     def has_changed(self):
         if super(EditQuestionForm, self).has_changed():
             return True
+
         if askbot_settings.GROUPS_ENABLED:
             was_private = self.question.is_private()
             if was_private != self.cleaned_data['post_privately']:
@@ -1248,7 +1382,8 @@ class EditQuestionForm(PostAsSomeoneForm, PostPrivatelyForm):
         else:
             return False
 
-    def can_stay_anonymous(self):
+
+    def can_edit_anonymously(self):
         """determines if the user cat keep editing the question
         anonymously"""
         return (askbot_settings.ALLOW_ASK_ANONYMOUSLY
@@ -1256,75 +1391,6 @@ class EditQuestionForm(PostAsSomeoneForm, PostPrivatelyForm):
             and self.user.is_owner_of(self.question)
         )
 
-    def clean_reveal_identity(self):
-        """cleans the reveal_identity field
-        which determines whether previous anonymous
-        edits must be rewritten as not anonymous
-        this does not necessarily mean that the edit will be anonymous
-
-        only does real work when question is anonymous
-        based on the following truth table:
-
-        is_anon  can  owner  checked  cleaned data
-        -        *     *        *        False (ignore choice in checkbox)
-        +        +     +        +        True
-        +        +     +        -        False
-        +        +     -        +        Raise(Not owner)
-        +        +     -        -        False
-        +        -     +        +        True (setting "can" changed, say yes)
-        +        -     +        -        False, warn (but prev edits stay anon)
-        +        -     -        +        Raise(Not owner)
-        +        -     -        -        False
-        """
-        value = self.cleaned_data['reveal_identity']
-        if self.question.is_anonymous:
-            if value is True:
-                if self.user.is_owner_of(self.question):
-                    #regardless of the ALLOW_ASK_ANONYMOUSLY
-                    return True
-                else:
-                    self.show_field('reveal_identity')
-                    del self.cleaned_data['reveal_identity']
-                    raise forms.ValidationError(
-                                _(
-                                    'Sorry, only owner of the anonymous '
-                                    'question can reveal his or her '
-                                    'identity, please uncheck the '
-                                    'box'
-                                 )
-                             )
-            else:
-                can_ask_anon = askbot_settings.ALLOW_ASK_ANONYMOUSLY
-                is_owner = self.user.is_owner_of(self.question)
-                if can_ask_anon is False and is_owner:
-                    self.show_field('reveal_identity')
-                    raise forms.ValidationError(
-                        _(
-                            'Sorry, apparently rules have just changed - '
-                            'it is no longer possible to ask anonymously. '
-                            'Please either check the "reveal identity" box '
-                            'or reload this page and try editing the question '
-                            'again.'
-                        )
-                    )
-                return False
-        else:
-            #takes care of 8 possibilities - first row of the table
-            return False
-
-    def clean(self):
-        """Purpose of this function is to determine whether
-        it is ok to apply edit anonymously in the synthetic
-        field edit_anonymously. It relies on correct cleaning
-        if the "reveal_identity" field
-        """
-        super(EditQuestionForm, self).clean()
-        reveal_identity = self.cleaned_data.get('reveal_identity', False)
-        stay_anonymous = False
-        if reveal_identity is False and self.can_stay_anonymous():
-            stay_anonymous = True
-        self.cleaned_data['stay_anonymous'] = stay_anonymous
-        return self.cleaned_data
 
 class EditAnswerForm(PostAsSomeoneForm, PostPrivatelyForm):
     summary = SummaryField()
@@ -1336,9 +1402,13 @@ class EditAnswerForm(PostAsSomeoneForm, PostPrivatelyForm):
         user = kwargs.pop('user', None)
         super(EditAnswerForm, self).__init__(*args, **kwargs)
         #it is important to add this field dynamically
-        self.fields['text'] = AnswerEditorField(user=user)
+        #label is empty on purpose
+        self.fields['text'] = AnswerEditorField(label='', user=user)
         self.fields['text'].initial = revision.text
         self.fields['wiki'].initial = answer.wiki
+
+        if should_use_recaptcha(user):
+            self.fields['recaptcha'] = AskbotRecaptchaField()
 
     def has_changed(self):
         #todo: this function is almost copy/paste of EditQuestionForm.has_changed()
@@ -1426,7 +1496,7 @@ class EditUserForm(forms.Form):
         if user.country is None:
             country = 'unknown'
         else:
-            country = user.country
+            country = user.country.code
         self.fields['country'].initial = country
         self.fields['show_country'].initial = user.show_country
         self.fields['show_marked_tags'].initial = user.show_marked_tags
@@ -1691,20 +1761,40 @@ class BulkTagSubscriptionForm(forms.Form):
 class GetDataForPostForm(forms.Form):
     post_id = forms.IntegerField()
 
+class GetCommentDataForPostForm(GetDataForPostForm):
+    avatar_size = forms.IntegerField()
+
 class GetUserItemsForm(forms.Form):
     page_size = forms.IntegerField(required=False)
     page_number = forms.IntegerField(min_value=1)
     user_id = forms.IntegerField()
 
 class NewCommentForm(forms.Form):
-    comment = forms.CharField()
+    comment = forms.CharField(max)
     post_id = forms.IntegerField()
+    avatar_size = forms.IntegerField()
+    def __init__(self, *args, **kwargs):
+        super(NewCommentForm, self).__init__(*args, **kwargs)
+        self.fields['comment'] = forms.CharField(
+                                    max_length=askbot_settings.MAX_COMMENT_LENGTH
+                                )
 
 class EditCommentForm(forms.Form):
     comment_id = forms.IntegerField()
     comment = forms.CharField()
+    avatar_size = forms.IntegerField()
     suppress_email = SuppressEmailField()
 
 
 class ProcessCommentForm(forms.Form):
     comment_id = forms.IntegerField()
+    avatar_size = forms.IntegerField()
+
+
+class ConvertCommentForm(forms.Form):
+    comment_id = forms.IntegerField()
+
+
+class ReorderBadgesForm(forms.Form):
+    badge_id = forms.IntegerField()
+    position = forms.IntegerField()

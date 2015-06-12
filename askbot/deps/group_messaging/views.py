@@ -11,85 +11,32 @@ and turns them into complete views
 import copy
 import datetime
 from django.template.loader import get_template
+from django.template import Context
 from django.contrib.auth.models import User
 from django.db import models
+from django.db.models import Q
 from django.forms import IntegerField
 from django.http import HttpResponse
 from django.http import HttpResponseNotAllowed
 from django.http import HttpResponseForbidden
 from django.utils import simplejson
-from group_messaging.models import Message
-from group_messaging.models import MessageMemo
-from group_messaging.models import SenderList
-from group_messaging.models import LastVisitTime
-from group_messaging.models import get_personal_group_by_user_id
-from group_messaging.models import get_personal_groups_for_users
-
-class InboxView(object):
-    """custom class-based view
-    to be used for pjax use and for generation
-    of content in the traditional way, where
-    the only the :method:`get_context` would be used.
-    """
-    template_name = None #used only for the "GET" method
-    http_method_names = ('GET', 'POST')
-
-    def render_to_response(self, context, template_name=None):
-        """like a django's shortcut, except will use
-        template_name from self, if `template_name` is not given.
-        Also, response is packaged as json with an html fragment
-        for the pjax consumption
-        """
-        if template_name is None:
-            template_name = self.template_name
-        template = get_template(template_name)
-        html = template.render(context)
-        json = simplejson.dumps({'html': html, 'success': True})
-        return HttpResponse(json, mimetype='application/json')
-            
-
-    def get(self, request, *args, **kwargs):
-        """view function for the "GET" method"""
-        context = self.get_context(request, *args, **kwargs)
-        return self.render_to_response(context)
-
-    def post(self, request, *args, **kwargs):
-        """view function for the "POST" method"""
-        pass
-
-    def dispatch(self, request, *args, **kwargs):
-        """checks that the current request method is allowed
-        and calls the corresponding view function"""
-        if request.method not in self.http_method_names:
-            return HttpResponseNotAllowed()
-        view_func = getattr(self, request.method.lower())
-        return view_func(request, *args, **kwargs)
-
-    def get_context(self, request, *args, **kwargs):
-        """Returns the context dictionary for the "get"
-        method only"""
-        return {}
-
-    def as_view(self):
-        """returns the view function - for the urls.py"""
-        def view_function(request, *args, **kwargs):
-            """the actual view function"""
-            if request.user.is_authenticated() and request.is_ajax():
-                view_method = getattr(self, request.method.lower())
-                return view_method(request, *args, **kwargs)
-            else:
-                return HttpResponseForbidden()
-
-        return view_function
+from askbot.utils.views import PjaxView
+from .models import Message
+from .models import MessageMemo
+from .models import SenderList
+from .models import LastVisitTime
+from .models import get_personal_group_by_user_id
+from .models import get_personal_groups_for_users
+from .models import get_unread_inbox_counter
 
 
-class NewThread(InboxView):
+class NewThread(PjaxView):
     """view for creation of new thread"""
     http_method_list = ('POST',)
 
     def post(self, request):
         """creates a new thread on behalf of the user
-        response is blank, because on the client side we just 
+        response is blank, because on the client side we just
         need to go back to the thread listing view whose
         content should be cached in the client'
         """
@@ -120,10 +67,10 @@ class NewThread(InboxView):
                         )
             result['success'] = True
             result['message_id'] = message.id
-        return HttpResponse(simplejson.dumps(result), mimetype='application/json')
+        return HttpResponse(simplejson.dumps(result), content_type='application/json')
 
 
-class PostReply(InboxView):
+class PostReply(PjaxView):
     """view to create a new response"""
     http_method_list = ('POST',)
 
@@ -142,36 +89,41 @@ class PostReply(InboxView):
         last_visit.at = datetime.datetime.now()
         last_visit.save()
         return self.render_to_response(
-            {'post': message, 'user': request.user},
+            Context({'post': message, 'user': request.user}),
             template_name='group_messaging/stored_message.html'
         )
 
 
-class ThreadsList(InboxView):
-    """shows list of threads for a given user"""  
+class ThreadsList(PjaxView):
+    """shows list of threads for a given user"""
     template_name = 'group_messaging/threads_list.html'
     http_method_list = ('GET',)
 
-    def get_context(self, request):
+    def get_context(self, request, *args):
         """returns thread list data"""
+
+        if len(args):
+            user = args[0]
+        else:
+            user = request.user
+
         #get threads and the last visit time
         sender_id = IntegerField().clean(request.REQUEST.get('sender_id', '-1'))
+
         if sender_id == -2:
-            threads = Message.objects.get_threads(
-                                            recipient=request.user,
-                                            deleted=True
-                                        )
+            received = Message.objects.get_threads(recipient=user, deleted=True)
+            sent = Message.objects.get_threads(sender=user, deleted=True)
+            threads = (received | sent).distinct()
         elif sender_id == -1:
-            threads = Message.objects.get_threads(recipient=request.user)
-        elif sender_id == request.user.id:
-            threads = Message.objects.get_sent_threads(sender=request.user)
+            threads = Message.objects.get_threads(recipient=user)
+        elif sender_id == user.id:
+            threads = Message.objects.get_sent_threads(sender=user)
         else:
             sender = User.objects.get(id=sender_id)
             threads = Message.objects.get_threads(
-                                            recipient=request.user,
+                                            recipient=user,
                                             sender=sender
                                         )
-
         threads = threads.order_by('-last_active_at')
 
         #for each thread we need to know if there is something
@@ -183,8 +135,8 @@ class ThreadsList(InboxView):
             thread_data['status'] = 'new'
             #determine the senders info
             senders_names = thread.senders_info.split(',')
-            if request.user.username in senders_names:
-                senders_names.remove(request.user.username)
+            if user.username in senders_names:
+                senders_names.remove(user.username)
             thread_data['senders_info'] = ', '.join(senders_names)
             thread_data['thread'] = thread
             threads_data[thread.id] = thread_data
@@ -201,7 +153,7 @@ class ThreadsList(InboxView):
             threads_data[thread_id]['responses_count'] = responses_count
 
         last_visit_times = LastVisitTime.objects.filter(
-                                            user=request.user,
+                                            user=user,
                                             message__in=threads
                                         )
         for last_visit in last_visit_times:
@@ -224,6 +176,10 @@ class DeleteOrRestoreThread(ThreadsList):
 
     http_method_list = ('POST',)
 
+    def __init__(self, action, *args, **kwargs):
+        self.thread_action = action or 'delete'
+        super(DeleteOrRestoreThread, self).__init__(*args, **kwargs)
+
     def post(self, request, thread_id=None):
         """process the post request:
         * delete or restore thread
@@ -233,28 +189,40 @@ class DeleteOrRestoreThread(ThreadsList):
         #part of the threads list context
         sender_id = IntegerField().clean(request.POST['sender_id'])
 
-        #a little cryptic, but works - sender_id==-2 means deleted post
-        if sender_id == -2:
-            action = 'restore'
+        #sender_id==-2 means deleted post
+        if self.thread_action == 'delete':
+            if sender_id == -2:
+                action = 'delete'
+            else:
+                action = 'archive'
         else:
-            action = 'delete'
+            action = 'restore'
 
         thread = Message.objects.get(id=thread_id)
         memo, created = MessageMemo.objects.get_or_create(
                                     user=request.user,
                                     message=thread
                                 )
-        if action == 'delete':
+
+        if created and action == 'archive':
+            #unfortunately we lose "unseen" status when archiving
+            counter = get_unread_inbox_counter(request.user)
+            counter.decrement()
+            counter.save()
+
+        if action == 'archive':
             memo.status = MessageMemo.ARCHIVED
-        else:
+        elif action == 'restore':
             memo.status = MessageMemo.SEEN
+        else:
+            memo.status = MessageMemo.DELETED
         memo.save()
 
         context = self.get_context(request)
-        return self.render_to_response(context)
+        return self.render_to_response(Context(context))
 
 
-class SendersList(InboxView):
+class SendersList(PjaxView):
     """shows list of senders for a user"""
     template_name = 'group_messaging/senders_list.html'
     http_method_names = ('GET',)
@@ -266,7 +234,7 @@ class SendersList(InboxView):
         return {'senders': senders, 'request_user_id': request.user.id}
 
 
-class ThreadDetails(InboxView):
+class ThreadDetails(PjaxView):
     """shows entire thread in the unfolded form"""
     template_name = 'group_messaging/thread_details.html'
     http_method_names = ('GET',)
@@ -275,12 +243,18 @@ class ThreadDetails(InboxView):
         """shows individual thread"""
         #todo: assert that current thread is the root
         root = Message.objects.get(id=thread_id)
-        responses = Message.objects.filter(root__id=thread_id)
+        responses = Message.objects.filter(root__id=thread_id).order_by('sent_at')
         last_visit, created = LastVisitTime.objects.get_or_create(
                                                             message=root,
                                                             user=request.user
                                                         )
+        root.mark_as_seen(request.user)
         if created is False:
             last_visit.at = datetime.datetime.now()
             last_visit.save()
-        return {'root_message': root, 'responses': responses, 'request': request}
+
+        return {
+            'root_message': root, 
+            'responses': responses, 
+            'request': request
+        }

@@ -7,44 +7,37 @@
     {{ request.user.username|escape }} - {% trans %}edit profile{% endtrans %}
 </h1>
 <div id="main-body" style="width:100%;padding-top:10px">
-    <form name="" action="{% url edit_user request.user.id %}" method="post">{% csrf_token %}
-        <div id="left" style="float:left;width:180px">
+    <form name="" action="{% url edit_user view_user.id %}" method="post">{% csrf_token %}
+        <div id="left" style="float:left; width:180px">
             <div class='avatar'>
                 {{ macros.gravatar(view_user, 128) }}
-                {% if request.user == view_user %}
+                {% if request.user.pk == view_user.pk %}
                     <p><a
                         {% if support_custom_avatars %}
-                            href="{% url avatar_change %}"
+                            href="{% url askbot_avatar_show_list view_user.pk %}"
                         {% else %}
                             href="{% url faq %}#gravatar"
                         {% endif %}
                     >{% trans %}change picture{% endtrans %}</a></p>
-                    {% if support_custom_avatars %}
-                    <p><a
-                        href="{% url avatar_delete %}"
-                        >{% trans %}remove{% endtrans %}</a>
-                    </p>
-                    {% endif %}
                 {% endif %}
             </div>
         </div>
-        <div style="float:right;width:750px;text-align:left;">
-            <h2>{% trans %}Registered user{% endtrans %}</h2>
+        <div style="float:right; width:750px; text-align:left;">
             <table class="user-details">
                 <tr>
                     <th width="100px"></th>
                     <th></th>
                 </tr>
                 <tr>
-                <td>{% trans %}Screen Name{% endtrans %}:</td>
-                <td>
-                {% if settings.EDITABLE_SCREEN_NAME %}
-                    {{ form.username }}
-                    <span class="form-error"> {{ form.username.errors }} </span></td>
-                {% else %}
-                    {{ view_user.username|escape }}
-                {% endif %}
-                </td>
+                    <td>{% trans %}Screen Name{% endtrans %}:</td>
+                    <td>
+                        {% if settings.EDITABLE_SCREEN_NAME %}
+                            {{ form.username }}
+                            <span class="form-error"> {{ form.username.errors }} </span>
+                        {% else %}
+                            {{ view_user.username|escape }}
+                        {% endif %}
+                    </td>
                 </tr>
                 <tr>
                     <td>
@@ -106,8 +99,8 @@
                 {% endif %}
             </table>
             <div style="margin:30px 0 60px 0">
-                <input type="submit" value="{% trans %}Update{% endtrans %}" class="submit" >&nbsp;
-                <input id="cancel" type="button" value="{% trans %}Cancel{% endtrans %}" class="submit" >
+                <input type="submit" value="{% trans %}Update{% endtrans %}"/>
+                <input id="cancel" type="button" value="{% trans %}Cancel{% endtrans %}"/>
             </div>
         </div>
     </form>
@@ -118,7 +111,7 @@
             $().ready(function(){
                 $("#nav_profile").attr('className',"on");
                 $("#cancel").bind('click', function(){history.go(-1);})
-            });     
+            });
         </script>
         {% block userjs %}
         {% endblock %}

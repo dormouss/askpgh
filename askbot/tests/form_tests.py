@@ -159,11 +159,7 @@ class EditQuestionAnonymouslyFormTests(AskbotTestCase):
         (0, 1, 1, 0, False),
         (0, 1, 1, 1, False),#all up to this point are False
         (1, 0, 0, 0, False),
-        (1, 0, 0, 1, 'error'),#not owner
-        (1, 0, 1, 0, 'error'),#rules changed either reload page or check box
-        (1, 0, 1, 1, True),#rules changed - say yes here
         (1, 1, 0, 0, False),
-        (1, 1, 0, 1, 'error'),
         (1, 1, 1, 0, False),
         (1, 1, 1, 1, True),
     )
@@ -213,7 +209,7 @@ class EditQuestionAnonymouslyFormTests(AskbotTestCase):
             self.setup_data(*(entry[:4]))
 
             if self.form.is_valid():
-                result = self.form.cleaned_data['reveal_identity']
+                result = self.form.cleaned_data.get('reveal_identity', False)
             else:
                 result = 'error'
 
@@ -263,7 +259,7 @@ class AskFormTests(AskbotTestCase):
 class UserStatusFormTest(AskbotTestCase):
 
     def setup_data(self, status):
-        data = {'user_status': status}
+        data = {'user_status': status, 'delete_content': False}
         self.moderator = self.create_user('moderator_user')
         self.moderator.set_status('m')
         self.subject = self.create_user('normal_user')

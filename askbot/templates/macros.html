@@ -6,31 +6,35 @@
     >{% if icon == False %}{% if site_label %}{{ site_label }}{% else %}{{ site }}{% endif %}{% endif %}</a>
 {%- endmacro -%}
 
-{%- macro inbox_post_snippet(response, inbox_section) -%}
-<div id="re_{{response.id}}" class="re{% if response.is_new %} new highlight{% else %} seen{% endif %}">
+{%- macro inbox_message_snippet(message) -%}
+<div class="message-details" data-message-id="{{ message.id }}">
     <input type="checkbox" />
-    <div class="face">
-    {{ gravatar(response.user, 48) }}
-    </div>
-    <div class="content">
-        <a 
-            style="font-size:12px"
-            href="{{ response.user.get_absolute_url() }}"
-        >{{ response.user.username|escape }}</a>
-        <a style="text-decoration:none;" href="{{ response.response_url }}">
-             {{ response.response_type }}
-             ({{ timeago(response.timestamp) }}):<br/>
-             {% if inbox_section != 'flags' %}
-                 {{ response.response_snippet }}
-             {% endif %}
-        </a>
-        {% if inbox_section == 'flags' %}
-             <a class="re_expand" href="{{ response.response_url }}">
-                  <!--div class="re_snippet">{{ response.response_snippet|escape }}</div-->
-                  <div class="re_content">{{ response.response_content }}</div>
-             </a>
-        {% endif %}
-    </div>
+    {{ gravatar(message.user, 16) }}
+    <a class="username" href="{{ message.user.get_absolute_url() }}">{{ message.user.username|escape }}</a>
+    <a class="forum-post-link" href="{{ message.url }}">{{ message.message_type }}</a>
+    ({{ timeago(message.timestamp) }})
+    {#<div class="snippet">{{ message.snippet }}</div>#}
+    <div class="post-content">{{ message.content }}</div>
+</div>
+{%- endmacro -%}
+
+{%- macro mailto_link(email) -%}
+    <a href="mailto:{{ email }}">{{ email }}</a>
+{%- endmacro -%}
+
+{%- macro moderation_queue_message(message) -%}
+<div class="message-details" data-message-id="{{ message.id }}">
+    <input type="checkbox" />
+    {{ gravatar(message.user, 16) }}
+    <a class="username" href="{{ message.user.get_absolute_url() }}">{{ message.user.username|escape }}</a> |
+    {% if message['memo_type'] == 'edit' %}
+        {{ mailto_link(message.user.email) }} |
+        ip=<span class="ip-addr">{{ message.ip_addr }}</span> |
+    {% endif %}
+    <a class="forum-post-link" href="{{ message.url }}">{{ message.message_type }}</a>
+    ({{ timeago(message.timestamp) }})
+    {#<div class="snippet">{{ message.snippet }}</div>#}
+    <div class="post-content">{{ message.content }}</div>
 </div>
 {%- endmacro -%}
 
@@ -52,42 +56,21 @@
 </script>
 {%- endmacro -%}
 
-{%- macro post_contributor_avatar_and_credentials(post, user, karma_mode = None, badges_mode = None) -%}
-    {% if post.is_anonymous %}
+{%- macro post_contributor_avatar_and_credentials(revision) -%}
+    {% if revision.is_anonymous %}
         <img alt="{% trans %}anonymous user{% endtrans %}" src="{{ '/images/anon.png'|media }} " class="gravatar" width="32" height="32" />
-        <p>{{ user.get_anonymous_name() }}</p>
+        <p>{{ revision.author.get_anonymous_name() }}</p>
     {% else %}
-        {{ user_card(user, karma_mode=karma_mode, badges_mode=badges_mode) }}
+        {{ user_card(revision.author) }}
     {% endif %}
     {% if settings.GROUPS_ENABLED %}
-        {{ user_primary_group(user) }}
+        {{ user_primary_group(revision.author) }}
     {% endif %}
 {%- endmacro -%}
 
-{%- macro post_last_updater_and_creator_info(
-        post, min_rep_to_edit_wiki, karma_mode = None, badges_mode = None
-    ) -%}
-    {{ post_contributor_info(
-            post, "original_author", post.wiki, min_rep_to_edit_wiki,
-            karma_mode = karma_mode, badges_mode = badges_mode
-        )
-    }}
-    {{ post_contributor_info(
-            post, "last_updater", post.wiki, min_rep_to_edit_wiki,
-            karma_mode = karma_mode, badges_mode = badges_mode
-        )
-    }}
-{%- endmacro -%}
-
-{%- macro post_contributor_info(
-        post, contributor_type, is_wiki, wiki_min_rep,
-        karma_mode = None, badges_mode = None
-    ) -%}
-{# there is a whole bunch of trickery here, probably indicative of 
-poor design of the data or methods on data objects #}
-{% if contributor_type=="original_author" %}
+{%- macro post_last_updater_and_creator_info(post) -%}
+    {% if post.wiki %}
     <div class='post-update-info'>
-    {% if is_wiki %}
         <p>
            {%- if post.post_type == 'question' -%}
                {{ settings.WORDS_ASKED|escape }}
@@ -103,61 +86,55 @@ poor design of the data or methods on data objects #}
             alt="{% trans %}this post is marked as community wiki{% endtrans %}"
             style="float:left"
         />
+        {% set wiki_min_rep = settings.MIN_REP_TO_EDIT_WIKI %}
         <p class="tip">{% trans %}This post is a wiki.
         Anyone with karma &gt;{{wiki_min_rep}} is welcome to improve it.{% endtrans %}</p>
+    </div>
     {% else %}
-        <p style="line-height:12px;">
-            {# todo: access to class names needs to be removed here #}
-            {% if post.post_type == 'question' %}
-                {{ settings.WORDS_ASKED|escape }}
-            {% elif post.post_type == 'answer' %}
-                {{ settings.WORDS_ANSWERED|escape }}
-            {% else %}
-                {% trans %}posted{% endtrans %}
-            {% endif %}
-            {% if post.__class__.__name__ == 'PostRevision' %}
-                <strong>{{ timeago(post.revised_at) }}</strong>
-            {% else %}
-                <strong>{{ timeago(post.added_at) }}</strong>
-            {% endif %}
-        </p>
-        {{ post_contributor_avatar_and_credentials(
-            post, post.author, karma_mode = karma_mode, badges_mode = badges_mode
-        ) }}
-    {% endif %}
-    </div>
-{% elif contributor_type=="last_updater" %}
-    {% if post.post_type in ('question', 'answer') %}
-        {% set last_edited_at = post.last_edited_at %}
-        {% set original_author = post.author %}
-        {% set update_author = post.last_edited_by %}
-    {% elif post.__class__.__name__ == 'PostRevision' %}
-        {% set last_edited_at = post.revised_at %}
-        {% set original_author = None %}{# fake value to force display widget in the revision views #}
-        {% set update_author = post.author %}
-    {% endif %}
-    {% if last_edited_at %}
-    <div class='post-update-info'>
-        <p style="line-height:12px;">
-            <a 
-        {% if post.post_type == 'question' %}
-            href="{% url question_revisions post.id %}"
-        {% else %}
-            href="{% url answer_revisions post.id %}"
+        {% set first_rev = post.get_earliest_revision() %}
+        {% set last_rev = post.get_latest_revision() %}
+        {{ post_contributor_info(first_rev, "original_author") }}
+        {% if first_rev != last_rev %}
+            {{ post_contributor_info(last_rev, "last_updater") }}
         {% endif %}
-            >{% trans %}updated{% endtrans %} <strong>{{ timeago(last_edited_at) }}</strong></a>
-        </p>
-        {% if original_author != update_author or is_wiki %}
-            {{ 
-                post_contributor_avatar_and_credentials(
-                    post, update_author,
-                    karma_mode = karma_mode, badges_mode = badges_mode
-                )
-            }}
-        {% endif %}
-    </div>
     {% endif %}
+{%- endmacro -%}
+
+{%- macro post_contributor_info(revision, contributor_type) -%}
+<div class='post-update-info'>
+{% if contributor_type=="original_author" %}
+    {% if revision.post.post_type == 'question' %}
+        {% set action_label = settings.WORDS_ASKED|escape %}
+    {% elif revision.post.post_type == 'answer' %}
+        {% set action_label = settings.WORDS_ANSWERED|escape %}
+    {% else %}
+        {% set action_label = gettext('posted') %}
+    {% endif %}
+{% else %}
+    {% set action_label = gettext('updated') %}
 {% endif %}
+    {% if revision.post.post_type in ('question', 'answer') %}
+        {% set original_author = revision.post.author %}
+    {% else %}
+        {% set original_author = None %}
+    {% endif %}
+    <p style="line-height:12px;">
+        <a 
+        {% if revision.post.post_type == 'question' %}
+            href="{% url question_revisions revision.post.id %}"
+        {% else %}
+            href="{% url answer_revisions revision.post.id %}"
+        {% endif %}
+        >{{ action_label }} <strong>{{ timeago(revision.revised_at) }}</strong></a>
+    </p>
+    {% set show_user_info = (contributor_type == 'original_author' or 
+        (contributor_type == 'last_updater' and 
+        original_author != revision.author ))
+    %}
+    {% if show_user_info %}
+        {{ post_contributor_avatar_and_credentials(revision) }}
+    {% endif %}
+</div>
 {%- endmacro -%}
 
 {%- macro if_else(condition, if_true, if_false) -%}
@@ -182,14 +159,12 @@ poor design of the data or methods on data objects #}
 
 {%- macro tag_list_widget(
         tags,
-        id = None,
-        deletable = False,
-        make_links = True,
-        search_state = None,
-        css_class = None,
-        tag_css_class = None,
-        tag_html_tag = 'li',
-        truncate_long_tags = False
+        id=None,
+        deletable=False,
+        make_links=True,
+        search_state=None,
+        css_class=None,
+        truncate_long_tags=False
     )
 -%}
 <ul {% if id %}id="{{ id }}"{% endif %}
@@ -197,15 +172,15 @@ poor design of the data or methods on data objects #}
 >
     {% if tags %}
         {% for tag in tags %}
+        <li>
             {{ tag_widget(
                 tag,
-                css_class = tag_css_class,
-                deletable = deletable,
-                is_link = make_links,
-                search_state = search_state,
-                html_tag = tag_html_tag,
-                truncate_long_tag = False
+                deletable=deletable,
+                is_link=make_links,
+                search_state=search_state,
+                truncate_long_tag=False
             )}}
+        </li>
         {% endfor %}
     {% endif %}
 </ul>
@@ -257,8 +232,9 @@ poor design of the data or methods on data objects #}
 -%}
     {% if acceptance_level in ('open', 'moderated') %}
         <button 
-            class="group-join-btn button follow-toggle {% if membership_level != 'none' %}on on-state{% endif %}"
+            class="group-join-btn button"
             data-group-id="{{group_id}}"
+            data-is-on="{{ membership_level|not_equal('none')|as_js_bool }}"
             {% if acceptance_level == 'open' %}
                 data-off-prompt-text="{% trans %}Leave this group{% endtrans %}"
                 data-on-prompt-text="{% trans %}Join this group{% endtrans %}"
@@ -270,7 +246,7 @@ poor design of the data or methods on data objects #}
                     data-on-state-text="{% trans %}You are a member{% endtrans %}"
                 {% else %}
                     data-off-prompt-text="{% trans %}Cancel application{% endtrans %}"
-                    data-on-state-text="{% trans %}Waiting approval{% endtrans %}"
+                    data-on-state-text="{% trans %}Awaiting approval{% endtrans %}"
                 {% endif %}
                 data-on-prompt-text="{% trans %}Ask to join{% endtrans %}"
                 data-off-state-text="{% trans %}Ask to join{% endtrans %}"
@@ -279,7 +255,7 @@ poor design of the data or methods on data objects #}
             {% if membership_level == 'full' %}
                 {% trans %}You are a member{% endtrans %}
             {% elif membership_level == 'pending' %}
-                {% trans %}Waiting approval{% endtrans %}
+                {% trans %}Awaiting approval{% endtrans %}
             {% else %}
                 {% if acceptance_level == 'open' %}
                     {% trans %}Join this group{% endtrans %}
@@ -294,42 +270,39 @@ poor design of the data or methods on data objects #}
 {# todo: remove the extra content argument to make its usage more explicit #}
 {%- macro tag_widget(
             tag,
-            deletable = False,
-            is_link = True,
-            delete_link_title = None,
-            css_class = None,
-            search_state = None,
-            html_tag = 'div',
-            extra_content = '',
-            truncate_long_tag = False
+            deletable=False,
+            is_link=True,
+            css_class=None,
+            search_state=None,
+            extra_content='',
+            truncate_long_tag=False
         )
 -%}
   {% if not search_state %}  {#  get empty SearchState() if there's none; CAUTION: for some reason this doesn't work inside `spaceless` tag below! #}
       {% set search_state=search_state|get_empty_search_state %}
   {% endif %}
   {% spaceless %}
-    <{{ html_tag }} class="tag-left{% if deletable %} deletable-tag{% endif %}">
-    <{% if not is_link or tag[-1] == '*' %}span{% else %}a{% endif %}
-            class="tag tag-right{% if css_class %} {{ css_class }}{% endif %}"
+    <div class="js-tag {% if deletable %} js-deletable-tag{% endif %}">
+        <{% if is_link %}a{% else %}span{% endif %}
+            class="js-tag-name{% if css_class %} {{ css_class }}{% endif %}"
+            rel="tag"
             {% if is_link %}
             href="{{ search_state.add_tag(tag).full_url() }}"
             {% endif %}
-            rel="tag"
             data-tag-name="{{ tag|replace('*', '&#10045;')|escape }}"
         >{% if truncate_long_tag -%}
-            {{ tag|replace('*', '&#10045;')|truncate(17, True)|escape }}
-        {%- else -%}
-            {{ tag|replace('*', '&#10045;')|escape }}
-        {%- endif %}</{% if not is_link or tag[-1] == '*' %}span{% else %}a{% endif %}>
+                {{ tag|replace('*', '&#10045;')|truncate(17, True)|escape }}
+            {%- else -%}
+                {{ tag|replace('*', '&#10045;')|escape }}
+            {%- endif -%}
+        </{% if is_link %}a{% else %}span{% endif %}>
         {% if deletable %}
-            <div class="delete-icon"
-                {% if delete_link_title %}
-                    title="{{ delete_link_title }}"
-                {% endif %}
-            >x</div>
+            <span class="js-delete-icon">&times;</span>
         {% endif %}
-    </{{ html_tag }}>
-    {{ extra_content }}
+        {% if extra_content %}
+        <span class="js-tag-extra-content">{{ extra_content }}</span>
+        {% endif %}
+    </div>
   {% endspaceless %}
 {%- endmacro -%}
 
@@ -358,22 +331,23 @@ poor design of the data or methods on data objects #}
 {# Warning! Any changes to the comment markup here must be duplicated in post.js
 for the purposes of the AJAX comment editor #}
 
-{%- macro add_or_show_comments_button(post = None, max_comments = None, widget_id = None) -%}
+{%- macro comments_widget_buttons(post = None, max_comments = None) -%}
     {% if post.comment_count > max_comments %}
-        {% set remaining_comment_count = post.comment_count - max_comments %}
+        {% if settings.COMMENTS_REVERSED == False %}
+            <a class="hidden js-open-editor-btn">{% trans %}add a comment{% endtrans %}</a>
+        {% endif %}
+        <a class="js-load-comments-btn">
+            {% if settings.COMMENTS_REVERSED %}
+                {% trans %}load older comments{% endtrans %}
+            {% else %}
+                {% trans %}see more comments{% endtrans %}
+            {% endif %}
+        </a>
     {% else %}
-        {% set remaining_comment_count = 0 %}
+        {% if settings.COMMENTS_REVERSED == False %}
+            <a class="js-open-editor-btn">{% trans %}add a comment{% endtrans %}</a>
+        {% endif %}
     {% endif %}
-    <a id="add-comment-to-post-{{post.id}}" class="button"></a>
-    <script type="text/javascript">
-        askbot['data']['{{widget_id}}'] = {
-            truncated: {% if post.comment_count > max_comments %}true{% else %}false{% endif %}
-        };
-        askbot['functions']['renderAddCommentButton'](
-                                                '{{post.id}}',
-                                                {{remaining_comment_count}}
-                                            );
-    </script>
 {%- endmacro -%}
 
 {%- macro csrf_middleware_token(csrf_token) -%}
@@ -382,115 +356,105 @@ for the purposes of the AJAX comment editor #}
     </div>
 {%- endmacro -%}
 
+{%- macro comment_widget(comment, csrf_token=None) -%}
+    {# Warning! Any changes to the comment markup must be duplicated in post.js
+       for the purposes of the AJAX comment editor #}
+    <div class="comment js-comment" data-comment-id="{{ comment.id }}">
+        <div class="comment-votes">
+            <div 
+                id="comment-img-upvote-{{ comment.id }}" 
+                class="upvote js-score"
+            >{% if comment.score > 0 %}{{ comment.score }}{% endif %}</div>
+            {% if comment.id %}
+            <script type="text/javascript">
+                askbot['functions']['renderPostVoteButtons']('comment', '{{ comment.id }}');
+            </script>
+            {% endif %}
+        </div>
+        <div class="comment-content">
+            <div id="post-{{ comment.id }}-delete" class="comment-delete">
+                <span class="js-delete-icon" title="{% trans %}delete this comment{% endtrans %}"></span>
+            </div>
+            {% if comment.needs_moderation() %}
+                <p class="moderated">{% trans %}This post is awaiting moderation{% endtrans %}</p>
+            {% endif %}
+            <div class="comment-body">
+                {{ comment.summary }}
+            </div>
+            <div class="comment-controls">
+                {# important - the same number for avatar size must be in question/javascript.html #}
+                {{ gravatar(comment.author, 16) }}
+                <a 
+                    class="author"
+                    href="{{ comment.author.get_profile_url() }}"
+                >{{ comment.author.username|escape }}</a>
+                <span class="age">&nbsp;({{ timeago(comment.added_at) }})</span>
+                <a 
+                    id="post-{{ comment.id }}-edit"
+                    class="js-edit"
+                >{% trans %}edit{% endtrans %}</a>
+                <form 
+                    action="{% url comment_to_answer %}"
+                    method="POST"
+                    accept-charset="utf-8"
+                    class='convert-comment'
+                >
+                    <input type="hidden" name="csrfmiddlewaretoken" value="{{ csrf_token }}">
+                    <input type="hidden" value="{{ comment.id }}" name="comment_id">
+                    <input type="submit" value="{% trans %}convert to answer{% endtrans %}">
+                </form>
+            </div>
+        </div>
+    </div>
+    {% if comment.id %}
+    <script type="text/javascript">
+        askbot['functions']['hideConvertLinks']();
+        askbot['functions']['renderPostControls']('{{ comment.id }}');
+    </script>
+    {% endif %}
+{%- endmacro -%}
+
 {%- macro post_comments_widget(
         post=None,
-        show_post = None,
-        show_comment = None,
-        show_comment_position = None,
+        show_post=None,
+        show_comment=None,
+        show_comment_position=None,
         user=None,
-        max_comments=None
+        max_comments=None,
+        csrf_token=None
     )
 -%}
     {% spaceless %}
-    {% if post.comment_count > 0 %}
+    {% if show_post == post and show_comment and show_comment_position > max_comments %}
+        {% set comments = post.get_cached_comments()[:show_comment_position] %}
+    {% else %}
+        {% set comments = post.get_cached_comments()[:max_comments] %}
+    {% endif %}
+    {% set comments_count = comments|length %}
+    {% if comments_count > 0 or settings.COMMENTS_REVERSED %}
         <h2 class="comment-title">{% trans %}Comments{% endtrans %}</h2>
         <div class="clean"></div> 
     {% endif %}
-    {% set widget_id = 'comments-for-' + post.post_type + '-' + post.id|string %}
-    <div class="comments{% if post.comment_count == 0 %} empty{% endif %}" id="{{ widget_id }}">
+    <div class="comments{% if comments_count == 0 %} empty{% endif %} ordering-{% if settings.COMMENTS_REVERSED %}reversed{% else %}forward{% endif %}" 
+        data-parent-post-type="{{ post.post_type }}"
+        data-parent-post-id="{{ post.id }}"
+    >
+        {% if settings.COMMENTS_REVERSED %}
+            <div class="js-open-editor-btn new-comment-box">
+                {% set prompt=gettext('add a comment...') %}
+                {% include "widgets/mock_editor.html" %}
+            </div>
+        {% endif %}
         <div class="content">
-            {% if show_post == post and show_comment and show_comment_position > max_comments %}
-                {% set comments = post.get_cached_comments()[:show_comment_position] %}
-            {% else %}
-                {% set comments = post.get_cached_comments()[:max_comments] %}
-            {% endif %}
             {% for comment in comments %}
-                {# Warning! Any changes to the comment markup IN THIS `FOR` LOOP must be duplicated in post.js
-                   for the purposes of the AJAX comment editor #}
-                <div class="comment" 
-                    id="comment-{{comment.id}}"
-                    data-post-id="{{ comment.id }}"
-                >
-                    <div class="comment-votes">
-                        {% if comment.score > 0 %}
-                            <div 
-                                id="comment-img-upvote-{{comment.id}}" 
-                                class="upvote"
-                            >{{comment.score}}</div>
-                            <script type="text/javascript">
-                                askbot['functions']['renderPostVoteButtons']('comment', '{{comment.id}}');
-                            </script>
-                        {% else %}
-                            <div class="upvote"></div>
-                        {% endif %}
-                    </div>
-                    <div class="comment-content">
-                        <div 
-                            id="post-{{comment.id}}-delete"
-                            class="comment-delete"
-                        >
-                            <span 
-                                class="delete-icon"
-                                title="{% trans %}delete this comment{% endtrans %}"
-                            ></span>
-                        </div>
-                        <div class="comment-body">
-                            {{ comment.summary }}
-                            <a 
-                                class="author"
-                                href="{{comment.author.get_profile_url()}}"
-                            >{{comment.author.username|escape}}</a>
-                            <span class="age">&nbsp;({{ timeago(comment.added_at) }})</span>
-                            <a 
-                                id="post-{{comment.id}}-edit"
-                                class="edit"
-                            >{% trans %}edit{% endtrans %}</a>
-                            <form 
-                                action="{% url comment_to_answer %}"
-                                method="POST"
-                                accept-charset="utf-8"
-                                class='convert-comment'
-                            >
-                                {% csrf_token %}
-                                <input type="hidden" value="{{comment.id}}" name="comment_id" id="id_comment_id">
-                                <input type="submit" value="{% trans %}convert to answer{% endtrans %}">
-                            </form>
-                        </div>
-                    </div>
-                </div>
-                <script type="text/javascript">
-                    askbot['functions']['hideConvertLinks']();
-                    askbot['functions']['renderPostControls']('{{comment.id}}');
-                </script>
+                {{ comment_widget(comment, csrf_token) }}
             {% endfor %}
         </div>
         <div class="controls">
-            {% if show_post == post and show_comment %}
-                {% if show_comment_position > max_comments %}
-                    {{
-                        add_or_show_comments_button(
-                                            post = post,
-                                            max_comments = show_comment_position,
-                                            widget_id = widget_id
-                                        )
-                    }}
-                {% else %}
-                    {{
-                        add_or_show_comments_button(
-                                            post = post,
-                                            max_comments = max_comments,
-                                            widget_id = widget_id
-                                        )
-                    }}
-                {% endif %}
+            {% if show_post == post and show_comment and show_comment_position > max_comments %}
+                {{ comments_widget_buttons(post=post, max_comments=show_comment_position) }}
             {% else %}
-                {{
-                    add_or_show_comments_button(
-                                        post = post,
-                                        max_comments = max_comments,
-                                        widget_id = widget_id
-                                    )
-                }}
+                {{ comments_widget_buttons(post=post, max_comments=max_comments) }}
             {% endif %}
         </div>
     </div>
@@ -537,24 +501,16 @@ for the purposes of the AJAX comment editor #}
 {%- macro checkbox_in_div(checkbox_field, class = 'checkbox') -%}
     <div{% if class %} class="{{class}}"{% endif %}
         title="{{checkbox_field.help_text}}">
+        {{ checkbox_field.errors }}
         {{ checkbox_field }} 
         {{ checkbox_field.label_tag() }} 
-        {{ checkbox_field.errors }}
     </div>
 {%- endmacro -%}
 
-{%- macro edit_post(
-                post_form,
-                post_type = None,
-                post_html = None,
-                mandatory_tags = None,
-                use_category_selector = False,
-                tag_names = None,
-                editor_type = None,
-                user = None
-            )
--%}
-{%include "widgets/edit_post.html" %}
+{%- macro edit_post(post_form, post_html=None) -%}
+    {# todo: retire this macro, this will require renaming
+    or using "set" on some template variables #}
+    {% include "editors/rich_text.html" %}
 {%- endmacro -%}
 
 {%- macro tag_autocomplete_js(id = '#id_tags') -%}
@@ -570,58 +526,18 @@ for the purposes of the AJAX comment editor #}
 {%- endmacro -%}
 
 {%- macro answer_classes(answer, question) -%}
- {% if answer.accepted() %}accepted-answer{% endif %} {% if answer.author_id==question.author_id %} answered-by-owner{% endif %} {% if answer.deleted %}deleted{% endif -%}
+ {% if answer.endorsed %}accepted-answer{% endif %} {% if answer.author_id==question.author_id %} answered-by-owner{% endif %} {% if answer.deleted %}deleted{% endif -%}
 {%- endmacro -%}
 
-{%- macro follow_toggle(follow, name, alias, id) -%}
-    {# follow - boolean; name - object type name; alias - e.g. users name; id - object id #}
-    <div 
-        class="button follow-toggle follow-user-toggle" 
-        id="follow-{{ name|escape }}-{{ id }}"
-    >
-        {% if follow %}
-        <div class="follow">{% trans %}follow {{alias}}{% endtrans %}</div>
-        {% else %}
-        <div class="unfollow">
-          <div class="unfollow-red">{% trans %}unfollow {{alias}}{% endtrans %}</div>
-          <div class="unfollow-green">{% trans %}following {{alias}}{% endtrans %}</div>
-        </div>
-        {% endif %}
-    </div>
-{%- endmacro -%}
-
-{%- macro follow_user_toggle(visitor = None, subject = None) -%}
-    {% if visitor.is_anonymous() %}
-        {{ follow_toggle(True, 'user', subject.username|escape, subject.id) }}
-    {% else %}
-        {% if visitor != subject %}
-            {% if visitor.is_following(subject) %}
-                {{ follow_toggle(False, 'user', subject.username|escape, subject.id) }}
-            {% else %}
-                {{ follow_toggle(True, 'user', subject.username|escape, subject.id) }}
-            {% endif %}
-        {% endif %}
-    {% endif %}
-{%- endmacro -%}
-
-{%- macro user_long_score_and_badge_summary(
-    user, karma_mode=None, badges_mode = None
-) -%}
+{%- macro user_long_score_and_badge_summary(user) -%}
   {%- include "widgets/user_long_score_and_badge_summary.html" -%}
 {%- endmacro -%}
 
-{%- macro country_flag(country_code, flag_label) -%}
-    <img 
-        class="flag"
-        src="{{ ('/images/flags/' ~ country_code|lower ~ '.gif')|media }}"
-        alt="{{ flag_label }}"
-    />
-{%- endmacro -%}
-
 {%- macro user_country_flag(user) -%}
-    {% if user.country and user.show_country %}
+    {% if user.country and user.country.code != 'none' and user.show_country %}
         <img class="flag" 
-            src="{{ ('/images/flags/' ~ user.country.code|lower ~ '.gif')|media }}"
+            {# src="{{ user.country.flag }}" this is better but not compatible with v 1.0.5 #}
+            src="{{ ('/images/flags/' ~ user.country.code|lower ~ '.gif')|media }}" {# use 'local' copy of flags #}
             alt="{% trans 
                     country=user.country.name 
                     %}flag of {{country}}{% 
@@ -648,20 +564,20 @@ for the purposes of the AJAX comment editor #}
     {{ user_country_name_and_flag(user) }}
 {%- endmacro -%}
 
-{% macro user_card(user, karma_mode=None, badges_mode=None) %}
+{% macro user_card(user) %}
     {% include "widgets/user_card.html" %}
 {% endmacro %}
 
-{%- macro user_list(users, karma_mode=None, badges_mode=None) -%}
+{%- macro user_list(users) -%}
     {% include "widgets/user_list.html" %}
 {%- endmacro -%}
 
 {#todo: rename this to avatar #}
 {%- macro gravatar(user, size) -%}
 {% spaceless %}
-<a class="avatar-box"
+<a class="js-avatar-box"
     href="{{ user.get_absolute_url() }}"
-><img class="gravatar" 
+><img class="js-avatar gravatar" 
     width="{{size}}" height="{{size}}"
     src="{{ user.get_avatar_url(size) }}"
     title="{{user.username|escape}}" 
@@ -736,7 +652,7 @@ for the purposes of the AJAX comment editor #}
                     title="{% trans num=p.pages %}page {{ num }}{% endtrans %}"
                 >{{ p.pages }}</a>
             </span>
-        <span>
+        </span>
 
         {# "next" nav link #}
         <span class="next"
@@ -791,17 +707,12 @@ for the purposes of the AJAX comment editor #}
 
 
 {%- macro inbox_link(user) -%}
-    {% if user.new_response_count > 0 or user.seen_response_count > 0 %}
+    {% if user.new_response_count %}
     <a id='ab-responses' href="{{user.get_absolute_url()}}?sort=inbox&section=forum">
         <img 
             alt="{% trans username=user.username|escape %}responses for {{username}}{% endtrans %}"
-            {% if user.new_response_count > 0 %}
-                src="{{ "/images/mail-envelope-full.png"|media }}"
-                title="{% trans response_count=user.new_response_count %}you have {{response_count}} new response{% pluralize %}you have {{response_count}} new responses{% endtrans %}"
-            {% elif user.seen_response_count > 0 %}
-                src="{{ "/images/mail-envelope-empty.png"|media }}"
-                title="{% trans %}no new responses yet{% endtrans %}"
-            {% endif %}
+            src="{{ "/images/mail-envelope-full.png"|media }}"
+            title="{% trans response_count=user.new_response_count %}you have {{response_count}} new response{% pluralize %}you have {{response_count}} new responses{% endtrans %}"
         />
     </a>
     {% endif %}
@@ -809,9 +720,7 @@ for the purposes of the AJAX comment editor #}
 
 {%- macro moderation_items_link(user, moderation_items) -%}
     {% if moderation_items %}
-        <a id="ab-responses"
-            href="{{user.get_absolute_url()}}?sort=inbox&section=flags"
-        >
+        <a id="ab-responses" href="{% url moderation_queue %}">
         {% if moderation_items['new_count'] > 0 %}
             <img src="{{'/images/dialog-warning.png'|media}}"
             {% if moderation_items['seen_count'] > 0 %}
@@ -846,4 +755,11 @@ for the purposes of the AJAX comment editor #}
             form.decorate($("{{form}}"));
         })();
     </script>
+{% endmacro %}
+
+{% macro form_field_with_errors(field) %}
+    {% if field.errors %} 
+        <p class="error">{{ field.errors|join(", ") }}</p>
+    {% endif %}
+    {{ field }}
 {% endmacro %}

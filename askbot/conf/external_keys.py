@@ -53,8 +53,6 @@ settings.register(
     )
 )
 
-
-
 settings.register(
     livesettings.StringValue(
         EXTERNAL_KEYS,
@@ -74,6 +72,24 @@ settings.register(
                         'Please get this and a public key at '
                         'the <a href="%(url)s">%(url)s</a>'
                     ) % {'url': const.DEPENDENCY_URLS['recaptcha']}
+    )
+)
+
+settings.register(
+    livesettings.StringValue(
+        EXTERNAL_KEYS,
+        'GOOGLE_PLUS_KEY',
+        description=_('Google+ public API key'),
+        localized=True,
+    )
+)
+
+settings.register(
+    livesettings.StringValue(
+        EXTERNAL_KEYS,
+        'GOOGLE_PLUS_SECRET',
+        description=_('Google+ secret API key'),
+        localized=True,
     )
 )
 
@@ -120,6 +136,35 @@ settings.register(
         description=_('Twitter consumer secret'),
     )
 )
+
+settings.register(
+    livesettings.StringValue(
+        EXTERNAL_KEYS,
+        'MEDIAWIKI_KEY',
+        description=_('MediaWiki consumer key'),
+        help_text=_(
+            'Please register your forum at '
+            '%(mw_page)s page of your Wiki. '
+            'Your wiki must have <a href="%(url)s">OAuth extension</a> '
+            'installed '
+            'installationSpecial:OAuthConsumerRegistration/propose '
+            '<a href="%(url)s">'
+        ) % {
+            'url': const.DEPENDENCY_URLS['mediawiki-oauth-extension'],
+            'mw_page': 'Special:OAuthConsumerRegistration/propose'
+        },
+
+    )
+)
+
+settings.register(
+    livesettings.StringValue(
+        EXTERNAL_KEYS,
+        'MEDIAWIKI_SECRET',
+        description=_('MediaWiki consumer secret'),
+    )
+)
+
 
 settings.register(
     livesettings.StringValue(

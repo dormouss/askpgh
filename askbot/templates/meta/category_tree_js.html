@@ -4,7 +4,7 @@
         var sel_elems = $('.category-selector');
         if (sel_elems.length > 0) {
             var selector = new CategorySelector();
-            selector.setData(JSON.parse("{{category_tree_data|escapejs}}"));
+            selector.setData(JSON.parse('{{ category_tree_data|escapejs }}'));
             selector.decorate(sel_elems);
             selector.setState('select');
 

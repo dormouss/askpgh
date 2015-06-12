@@ -4,7 +4,7 @@
 <div
     id="answer-img-accept-{{ answer.id }}"
     class="answer-img-accept"
-    {% if answer.accepted() %}
+    {% if answer.endorsed %}
         title="{{ settings.WORDS_THIS_ANSWER_HAS_BEEN_SELECTED_AS_CORRECT|escape }}"
     {% else %}
         title="{{ settings.WORDS_MARK_THIS_ANSWER_AS_CORRECT|escape }} {% trans %}(click again to undo){% endtrans %}"

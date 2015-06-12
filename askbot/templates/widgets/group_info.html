@@ -77,9 +77,7 @@
             {% endfor %}
         </select>
         <br/>
-        <input
-            type="checkbox"
-            id="vip-toggle"
+        <input type="checkbox" id="vip-toggle"
             {% if group.is_vip %}checked="checked"{% endif %}
             data-toggle-url="{% url toggle_group_profile_property %}"
         />

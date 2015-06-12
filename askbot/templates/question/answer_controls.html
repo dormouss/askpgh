@@ -32,6 +32,7 @@
     <a class="question-delete"
     >{% if answer.deleted %}{% trans %}undelete{% endtrans %}{% else %}{% trans %}delete{% endtrans %}{% endif %}</a>
 </span>
+{% if thread.is_moderated() %}
 <span 
     id="post-{{answer.id}}-publish"
     class="action-link"
@@ -48,6 +49,7 @@
         >{% trans %}publish{% endtrans %}</a>
     {% endif %}
 </span>
+{% endif %}
 <span class="action-link">
     <a  class="permant-link"
         href="{{ answer.get_absolute_url(question_post=question) }}"
@@ -64,7 +66,7 @@
             method="post"
         >
             {% csrf_token %}
-            <input type="hidden" name="answer_id" id="id_answer_id" value="{{answer.id}}"/>
+            <input type="hidden" name="answer_id" value="{{answer.id}}"/>
             <input 
                 type="submit"
                 class="link"
@@ -91,5 +93,5 @@
 <script type="text/javascript">
     askbot['functions']['hideConvertAnswerLinks']('{{ answer.id }}');
     askbot['functions']['hidePublishAnswerLink']('{{ answer.id }}');
-    askbot['functions']['renderPostControls']('{{ answer.id }}');
+    askbot['functions']['renderPostControls']('{{ answer.id }}'{{ ', true' if answer.wiki }});
 </script>

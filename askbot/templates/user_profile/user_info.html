@@ -4,33 +4,48 @@
     <div class="col1">
         <div class='avatar'>
             {{ macros.gravatar(view_user, 128) }}
-            {% if request.user == view_user %}
+            {% if request.user.pk == view_user.pk %}
                 <p><a 
                     {% if support_custom_avatars %}
-                        href="{% url avatar_change %}"
+                        href="{% url askbot_avatar_show_list view_user.id %}"
                     {% else %}
                         href="{% url faq %}#gravatar"
                     {% endif %}
                 >{% trans %}change picture{% endtrans %}</a></p>
-                {% if support_custom_avatars %}
-                <p><a 
-                    href="{% url avatar_delete %}"
-                    >{% trans %}remove{% endtrans %}</a>
-                </p>
-                {% endif %}
             {% endif %}
         </div>
         {% if can_show_karma %}
             <div class="scoreNumber">{{view_user.reputation|intcomma}}</div>
             <p><b style="color:#777;">{% trans %}karma{% endtrans %}</b></p>
         {% endif %}
-        {% if user_follow_feature_on %}
-            {{ macros.follow_user_toggle(visitor = request.user, subject = view_user) }}
+
+        {% if user_follow_feature_on and request.user != view_user %}
+            {# User follow button #}
+            {% if request.user.is_authenticated() %}
+                {% set is_following = request.user.is_following(view_user) %}
+            {% else %}
+                {% set is_following = False %}
+            {% endif %}
+            {% set alias=view_user.username|escape %}
+            <button class="js-follow-user button large"
+                data-is-on="{{ is_following|as_js_bool }}"
+                data-off-prompt-text="{% trans %}unfollow {{ alias }}{% endtrans %}"
+                data-on-prompt-text="{% trans %}follow {{ alias }}{% endtrans %}"
+                data-on-state-text="{% trans %}following {{ alias }}{% endtrans %}"
+                data-off-state-text="{% trans %}follow {{ alias }}{% endtrans %}"
+                data-toggle-url="{% url 'toggle_follow_object' model_name='user', object_id=view_user.id %}"
+            >
+                {% if is_following %}
+                    {% trans %}following {{ alias }}{% endtrans %}
+                {% else %}
+                    {% trans %}follow {{ alias }}{% endtrans %}
+                {% endif %}
+            </button>
         {% endif %}
     </div>
     <div class="col2">
         <table class="user-details">
-            {% if request.user == view_user %}
+            {% if request.user == view_user or request.user.is_administrator_or_moderator %}
             <tr>
                 <td class="user-profile-tool-links" align="left" colspan="2">
                     <a href="{% url edit_user view_user.id %}">
@@ -46,7 +61,7 @@
             {% endif %}
             <tr>
                 <th colspan="2" align="left">
-                <h3>{{user_status_for_display}}</h3>
+                <h3>{{ view_user.get_status_display() }}</h3>
                 </th>
             </tr>
             {% if view_user.real_name %}
@@ -102,7 +117,7 @@
             %}
                 {% include "user_profile/twitter_sharing_controls.html" %}
             {% endif %}
-            {% if view_user.location or view_user.country %}
+            {% if view_user.location or (view_user.country and view_user.country.code != 'none') %}
             <tr>
                 <td>{% trans %}location{% endtrans %}</td>
                 <td>{{ macros.user_full_location(view_user) }}</td>
@@ -125,7 +140,7 @@
     </div>
     <div class="col3 user-about">
     {% if view_user.about and (not view_user.is_blocked()) %}
-        {{view_user.about|linebreaks|escape}}
+        {{view_user.about|linebreaks}}
     {% endif %}
     </div>
 </div>

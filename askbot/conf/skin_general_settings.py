@@ -6,6 +6,8 @@ from askbot.deps.livesettings import ConfigurationGroup
 from askbot.deps.livesettings import values
 from django.utils.translation import ugettext_lazy as _
 from django.conf import settings as django_settings
+from django.core.validators import URLValidator
+from django.core.exceptions import ValidationError
 from askbot.skins import utils as skin_utils
 from askbot import const
 from askbot.conf.super_groups import CONTENT_AND_UI
@@ -16,11 +18,37 @@ GENERAL_SKIN_SETTINGS = ConfigurationGroup(
                     super_group = CONTENT_AND_UI
                 )
 
+def logo_destination_callback(old_url, new_url):
+    url = new_url.strip()
+    if url == '':
+        return ''
+
+    if url.startswith('/'):
+        return url
+
+    validate = URLValidator()
+    try:
+        validate(url)
+        return url
+    except ValidationError:
+        raise ValueError(_('Please enter a valid url'))
+
+settings.register(
+    values.StringValue(
+        GENERAL_SKIN_SETTINGS,
+        'LOGO_DESTINATION_URL',
+        default = '',
+        description = _('Custom destination URL for the logo'),
+        update_callback=logo_destination_callback
+    )
+)
+
+
 settings.register(
     values.ImageValue(
         GENERAL_SKIN_SETTINGS,
         'SITE_LOGO_URL',
-        description = _('Q&A site logo'),
+        description = _('Q&amp;A site logo'),
         help_text = _(
                         'To change the logo, select new file, '
                         'then submit this whole form.'

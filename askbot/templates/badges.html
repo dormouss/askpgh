@@ -8,21 +8,19 @@
 <br/>
 {% trans %}Below is the list of available badges and number of times each type of badge has been awarded.{% endtrans %}
 </p>
-<div id="medalList">
+<div class="badge-list">
     {% for badge in badges %}
-    <div style="clear:both;line-height:30px">
+    <div class="badge-ctnr" data-badge-id="{{ badge.id }}">
         {% if badge.id in my_badge_ids %}
-            <div style="float:left;min-width:30px;text-align:right;height:30px">
-                 <span style="font-size:175%; padding-right:5px; color:#5B9058;">&#10004;</span>
-            </div>
+            <div class="badge-awarded">&#10004;</div>
         {% endif %}
-        <div style="float:left;width:230px;">
+        <div class="badge-item">
             <a href="{{badge.get_absolute_url()}}" 
                 title="{{ badge.get_type_display() }} : {{ badge.get_description() }}" 
                 class="medal"><span class="{{ badge.get_css_class() }}">&#9679;</span>&nbsp;{{ badge.get_name() }}</a><strong> 
                 &#215; {{ badge.awarded_count|intcomma }}</strong>
         </div>
-        <p style="float:left;margin-top:8px;">{{ badge.get_description() }}</p>
+        <p class="badge-description">{{ badge.get_description() }}</p>
     </div>
     {% endfor %}
 </div>
@@ -54,5 +52,16 @@ profound knowledge and ability in addition to your active participation.{% endtr
         {% trans %}bronze badge: often given as a special honor{% endtrans %}
     </p>
 </div>
+{% endblock %}
+{% block endjs %}
+    {% if request.user.is_authenticated() and request.user.is_administrator_or_moderator() %}
+    <script type="text/javascript">
+        askbot['urls']['reorderBadges'] = '{% url reorder_badges %}';
+    </script>
+        {% compress js %}
+            <script type="text/javascript" src="{{ '/jslib/jquery-sortable.js'|media }}"></script>
+            <script type="text/javascript" src="{{ '/js/badges.js'|media }}'"></script>
+        {% endcompress %}
+    {% endif %}
 {% endblock %}
 <!-- end template badges.html -->

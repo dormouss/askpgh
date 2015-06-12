@@ -45,3 +45,4 @@ CANNOT_PERFORM_ACTION_UNTIL = _('Sorry, you will be able to %(perform_action)s a
 MODERATORS_OR_AUTHOR_CAN_PEFROM_ACTION = _(
     'Sorry, only moderators or the %(post_author)s %(perform_action)s'
 )
+PUNISHED_USER_INFO = _('Your account might be blocked in error - please contact the site administrators, if you think so.')

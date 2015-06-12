@@ -20,6 +20,7 @@ from askbot.utils import url_utils
 from askbot.utils.html import site_url
 from askbot import get_version
 
+
 def auto_now_timestamp(func):
     """decorator that will automatically set
     argument named timestamp to the "now" value if timestamp == None
@@ -27,12 +28,12 @@ def auto_now_timestamp(func):
     if there is no timestamp argument, then exception is raised
     """
     @functools.wraps(func)
-    def decorated_func(*arg, **kwarg):
+    def decorating_func(*arg, **kwarg):
         timestamp = kwarg.get('timestamp', None)
         if timestamp is None:
             kwarg['timestamp'] = datetime.datetime.now()
         return func(*arg, **kwarg)
-    return decorated_func
+    return decorating_func
 
 
 def ajax_login_required(view_func):
@@ -42,7 +43,7 @@ def ajax_login_required(view_func):
             return view_func(request, *args, **kwargs)
         else:
             json = simplejson.dumps({'login_required':True})
-            return HttpResponseForbidden(json, mimetype='application/json')
+            return HttpResponseForbidden(json, content_type='application/json')
     return wrap
 
 
@@ -107,7 +108,7 @@ def ajax_only(view_func):
                 'message': message,
                 'success': 0
             }
-            return HttpResponse(simplejson.dumps(data), mimetype='application/json')
+            return HttpResponse(simplejson.dumps(data), content_type='application/json')
 
         if isinstance(data, HttpResponse):#is this used?
             data.mimetype = 'application/json'
@@ -115,14 +116,13 @@ def ajax_only(view_func):
         else:
             data['success'] = 1
             json = simplejson.dumps(data)
-            return HttpResponse(json, mimetype='application/json')
+            return HttpResponse(json, content_type='application/json')
     return wrapper
 
 def check_authorization_to_post(func_or_message):
-
     message = _('Please login to post')
     if not inspect.isfunction(func_or_message):
-        message = unicode(func_or_message)
+        message = func_or_message
 
     def decorator(view_func):
         @functools.wraps(view_func)
@@ -130,7 +130,7 @@ def check_authorization_to_post(func_or_message):
             if request.user.is_anonymous():
                 #todo: expand for handling ajax responses
                 if askbot_settings.ALLOW_POSTING_BEFORE_LOGGING_IN == False:
-                    request.user.message_set.create(message = message)
+                    request.user.message_set.create(message=unicode(message))
                     params = 'next=%s' % request.path
                     return HttpResponseRedirect(url_utils.get_login_url() + '?' + params)
             return view_func(request, *args, **kwargs)
@@ -195,7 +195,7 @@ def check_spam(field):
 
             if askbot_settings.USE_AKISMET and request.method == "POST":
                 comment = smart_str(request.POST[field])
-                data = {'user_ip': request.META["REMOTE_ADDR"],
+                data = {'user_ip': request.META.get('REMOTE_ADDR'),
                         'user_agent': request.environ['HTTP_USER_AGENT'],
                         'comment_author': smart_str(request.user.username),
                         }
@@ -245,3 +245,43 @@ def admins_only(view_func):
         return view_func(request, *args, **kwargs)
     return decorator
 
+
+def reject_forbidden_phrases(func):
+    """apply to functions that make posts
+    assuming kwargs (all optional): 
+        title, tags, body_text, ip_addr
+
+    assumes that first of *args is User
+
+    todo: this might be factored out into
+    moderation module
+    """
+
+    @functools.wraps(func)
+    def wrapped(*args, **kwargs):
+        
+        user = args[0]
+        if not user.is_administrator_or_moderator():
+            text_bits = list()
+            if 'title' in kwargs:
+                text_bits.append(kwargs['title'])
+            if 'tags' in kwargs:
+                text_bits.append(kwargs['tags'])
+            if 'body_text' in kwargs:
+                text_bits.append(kwargs['body_text'])
+            
+            combined_text = ' '.join(text_bits)
+            from askbot.utils.markup import find_forbidden_phrase
+            from askbot import signals
+            phrase = find_forbidden_phrase(combined_text)
+            if phrase:
+                signals.spam_rejected.send(None,
+                    spam=phrase,
+                    text=combined_text,
+                    user=user,
+                    ip_addr=kwargs.get('ip_addr', 'unknown')
+                )
+                raise ValueError #cause 500
+        return func(*args, **kwargs)
+
+    return wrapped

@@ -1,4 +1,1 @@
-from django.conf import settings
-
-if getattr(settings, 'ENABLE_HAYSTACK_SEARCH'):
-    from askbot.search.haystack import UserIndex, ThreadIndex, PostIndex
+from askbot.search.haystack.indexes import ThreadIndex, UserIndex

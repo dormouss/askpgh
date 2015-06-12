@@ -1,7 +1,4 @@
 <a id="post-{{question.id}}-edit" class="question-edit" href="{% url edit_question question.id %}">{% trans %}edit{% endtrans %}</a>
-<script type="text/javascript">
-    var retagUrl = "{% url retag_question question.id %}";
-</script>
 <a id="retag" class="question-retag" href="{% url retag_question question.id %}">{% trans %}retag{% endtrans %}</a>
 {% if question.offensive_flag_count > 0 %}
     <span
@@ -30,10 +27,11 @@
 {% else %}
     <a class="question-close" href="{% url close question.id %}">{% trans %}close{% endtrans %}</a>
 {% endif %}
+<a class="question-merge">{% trans %}merge{% endtrans %}</a>
 <a
     id="post-{{question.id}}-delete"
     class="question-delete"
 >{% if question.deleted %}{% trans %}undelete{% endtrans %}{% else %}{% trans %}delete{% endtrans %}{% endif %}</a>
 <script type="text/javascript">
-    askbot['functions']['renderPostControls']('{{question.id}}');
+    askbot['functions']['renderPostControls']('{{question.id}}'{{ ', true' if question.wiki }});
 </script>

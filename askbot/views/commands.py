@@ -5,6 +5,7 @@ This module contains most (but not all) processors for Ajax requests.
 Not so clear if this subdivision was necessary as separation of Ajax and non-ajax views
 is not always very clean.
 """
+import askbot
 import datetime
 import logging
 from bs4 import BeautifulSoup
@@ -24,8 +25,11 @@ from django.shortcuts import render
 from django.template.loader import get_template
 from django.views.decorators import csrf
 from django.utils import simplejson
+from django.utils import translation
+from django.utils.encoding import force_text
 from django.utils.html import escape
 from django.utils.translation import ugettext as _
+from django.utils.translation import ungettext
 from django.utils.translation import string_concat
 from askbot.utils.slug import slugify
 from askbot import models
@@ -38,119 +42,14 @@ from askbot.utils import category_tree
 from askbot.utils import decorators
 from askbot.utils import url_utils
 from askbot.utils.forms import get_db_object_or_404
+from askbot.utils.html import get_login_link
 from django.template import RequestContext
 from askbot.skins.loaders import render_into_skin_as_string
 from askbot.skins.loaders import render_text_into_skin
 from askbot.models.tag import get_tags_by_names
 
 
-
-@csrf.csrf_exempt
-def manage_inbox(request):
-    """delete, mark as new or seen user's
-    response memo objects, excluding flags
-    request data is memo_list  - list of integer id's of the ActivityAuditStatus items
-    and action_type - string - one of delete|mark_new|mark_seen
-    """
-
-    response_data = dict()
-    try:
-        if request.is_ajax():
-            if request.method == 'POST':
-                post_data = simplejson.loads(request.raw_post_data)
-                if request.user.is_authenticated():
-                    activity_types = const.RESPONSE_ACTIVITY_TYPES_FOR_DISPLAY
-                    activity_types += (
-                        const.TYPE_ACTIVITY_MENTION,
-                        const.TYPE_ACTIVITY_MARK_OFFENSIVE,
-                        const.TYPE_ACTIVITY_MODERATED_NEW_POST,
-                        const.TYPE_ACTIVITY_MODERATED_POST_EDIT
-                    )
-                    user = request.user
-                    memo_set = models.ActivityAuditStatus.objects.filter(
-                        id__in = post_data['memo_list'],
-                        activity__activity_type__in = activity_types,
-                        user = user
-                    )
-
-                    action_type = post_data['action_type']
-                    if action_type == 'delete':
-                        memo_set.delete()
-                    elif action_type == 'mark_new':
-                        memo_set.update(status = models.ActivityAuditStatus.STATUS_NEW)
-                    elif action_type == 'mark_seen':
-                        memo_set.update(status = models.ActivityAuditStatus.STATUS_SEEN)
-                    elif action_type == 'remove_flag':
-                        for memo in memo_set:
-                            activity_type = memo.activity.activity_type
-                            if activity_type == const.TYPE_ACTIVITY_MARK_OFFENSIVE:
-                                request.user.flag_post(
-                                    post = memo.activity.content_object,
-                                    cancel_all = True
-                                )
-                            elif activity_type in \
-                                (
-                                    const.TYPE_ACTIVITY_MODERATED_NEW_POST,
-                                    const.TYPE_ACTIVITY_MODERATED_POST_EDIT
-                                ):
-                                post_revision = memo.activity.content_object
-                                request.user.approve_post_revision(post_revision)
-                                memo.delete()
-
-                    #elif action_type == 'close':
-                    #    for memo in memo_set:
-                    #        if memo.activity.content_object.post_type == "question":
-                    #            request.user.close_question(question = memo.activity.content_object, reason = 7)
-                    #            memo.delete()
-                    elif action_type == 'delete_post':
-                        for memo in memo_set:
-                            content_object = memo.activity.content_object
-                            if isinstance(content_object, models.PostRevision):
-                                post = content_object.post
-                            else:
-                                post = content_object
-                            request.user.delete_post(post)
-                            reject_reason = models.PostFlagReason.objects.get(
-                                                    id = post_data['reject_reason_id']
-                                                )
-                            template = get_template('email/rejected_post.html')
-                            data = {
-                                    'post': post.html,
-                                    'reject_reason': reject_reason.details.html
-                                   }
-                            body_text = template.render(RequestContext(request, data))
-                            mail.send_mail(
-                                subject_line = _('your post was not accepted'),
-                                body_text = unicode(body_text),
-                                recipient_list = [post.author.email,]
-                            )
-                            memo.delete()
-
-                    user.update_response_counts()
-
-                    response_data['success'] = True
-                    data = simplejson.dumps(response_data)
-                    return HttpResponse(data, mimetype="application/json")
-                else:
-                    raise exceptions.PermissionDenied(
-                        _('Sorry, but anonymous users cannot access the inbox')
-                    )
-            else:
-                raise exceptions.PermissionDenied('must use POST request')
-        else:
-            #todo: show error page but no-one is likely to get here
-            return HttpResponseRedirect(reverse('index'))
-    except Exception, e:
-        message = unicode(e)
-        if message == '':
-            message = _('Oops, apologies - there was some error')
-        response_data['message'] = message
-        response_data['success'] = False
-        data = simplejson.dumps(response_data)
-        return HttpResponse(data, mimetype="application/json")
-
-
-def process_vote(user = None, vote_direction = None, post = None):
+def process_vote(user=None, vote_direction=None, post=None):
     """function (non-view) that actually processes user votes
     - i.e. up- or down- votes
 
@@ -171,9 +70,9 @@ def process_vote(user = None, vote_direction = None, post = None):
     if vote != None:
         user.assert_can_revoke_old_vote(vote)
         score_delta = vote.cancel()
-        response_data['count'] = post.points+ score_delta
+        response_data['count'] = post.points + score_delta
+        post.points = response_data['count'] #assign here too for correctness
         response_data['status'] = 1 #this means "cancel"
-
     else:
         #this is a new vote
         votes_left = user.get_unused_votes_today()
@@ -197,38 +96,28 @@ def process_vote(user = None, vote_direction = None, post = None):
         response_data['count'] = post.points
         response_data['status'] = 0 #this means "not cancel", normal operation
 
+    if vote and post.thread_id:
+        post.thread.invalidate_cached_post_data()
+
     response_data['success'] = 1
 
     return response_data
 
 
-@csrf.csrf_exempt
+@csrf.csrf_protect
 def vote(request):
     """
-    todo: this subroutine needs serious refactoring it's too long and is hard to understand
-
-    vote_type:
-        acceptAnswer : 0,
-        questionUpVote : 1,
-        questionDownVote : 2,
-        favorite : 4,
-        answerUpVote: 5,
-        answerDownVote:6,
-        offensiveQuestion : 7,
-        remove offensiveQuestion flag : 7.5,
-        remove all offensiveQuestion flag : 7.6,
-        offensiveAnswer:8,
-        remove offensiveAnswer flag : 8.5,
-        remove all offensiveAnswer flag : 8.6,
-        removeQuestion: 9,
-        removeAnswer:10
-        questionSubscribeUpdates:11
-        questionUnSubscribeUpdates:12
+    TODO: This subroutine needs serious refactoring it's too long and is
+          hard to understand.
 
     accept answer code:
-        response_data['allowed'] = -1, Accept his own answer   0, no allowed - Anonymous    1, Allowed - by default
-        response_data['success'] =  0, failed                                               1, Success - by default
-        response_data['status']  =  0, By default                       1, Answer has been accepted already(Cancel)
+        response_data['allowed'] = -1, Accept his own answer
+                                    0, no allowed - Anonymous
+                                    1, Allowed - by default
+        response_data['success'] =  0, failed
+                                    1, Success - by default
+        response_data['status']  =  0, By default
+                                    1, Answer has been accepted already(Cancel)
 
     vote code:
         allowed = -3, Don't have enough votes left
@@ -248,199 +137,86 @@ def vote(request):
         status  =  0, by default
                    1, can't do it again
     """
+
     response_data = {
-        "allowed": 1,
-        "success": 1,
-        "status" : 0,
-        "count"  : 0,
-        "message" : ''
+        'allowed': 1,
+        'success': 1,
+        'status': 0,
+        'count': 0,
+        'message': '',
     }
 
     try:
-        if request.is_ajax() and request.method == 'POST':
-            vote_type = request.POST.get('type')
-        else:
+        if not request.is_ajax() or not request.method == 'POST':
             raise Exception(_('Sorry, something is not right here...'))
 
-        id = request.POST.get('postId')
+        if not request.user.is_authenticated():
+            raise exceptions.PermissionDenied(
+                _('Sorry, but anonymous users cannot perform this action.'))
 
-        if vote_type == '0':
-            if askbot_settings.ACCEPTING_ANSWERS_ENABLED is False:
-                return
-            if request.user.is_authenticated():
-                answer_id = request.POST.get('postId')
-                answer = get_object_or_404(models.Post, post_type='answer', id = answer_id)
-                # make sure question author is current user
-                if answer.accepted():
-                    request.user.unaccept_best_answer(answer)
-                    response_data['status'] = 1 #cancelation
-                else:
-                    request.user.accept_best_answer(answer)
+        vote_type = request.POST.get('type')
+        if (vote_type not in const.VOTE_TYPES
+                or vote_type == const.VOTE_FAVORITE):
+            # TODO: Favoriting a question is not handled!
+            raise Exception(
+                _('Request mode is not supported. Please try again.'))
 
-                ####################################################################
-                answer.thread.update_summary_html() # regenerate question/thread summary html
-                ####################################################################
+        vote_args = const.VOTE_TYPES[vote_type]
+        user = request.user
+        post_id = request.POST.get('postId')
+        post = get_object_or_404(
+            models.Post, post_type=vote_args[0], pk=post_id)
 
+        if vote_type == const.VOTE_ACCEPT_ANSWER:
+            if not askbot_settings.ACCEPTING_ANSWERS_ENABLED:
+                raise Exception(
+                    _('Request mode is not supported. Please try again.'))
+
+            if post.endorsed:
+                user.unaccept_best_answer(post)
+                response_data['status'] = 1  # cancelation
             else:
-                raise exceptions.PermissionDenied(
-                    _('Sorry, but anonymous users cannot %(perform_action)s') % {
-                        'perform_action': askbot_settings.WORDS_ACCEPT_OR_UNACCEPT_THE_BEST_ANSWER
-                    }
-                )
-        elif vote_type in ('1', '2', '5', '6'):#Q&A up/down votes
+                user.accept_best_answer(post)
 
-            ###############################
-            # all this can be avoided with
-            # better query parameters
-            vote_direction = 'up'
-            if vote_type in ('2','6'):
-                vote_direction = 'down'
-
-            if vote_type in ('5', '6'):
-                #todo: fix this weirdness - why postId here
-                #and not with question?
-                post_id = request.POST.get('postId')
-                post = get_object_or_404(models.Post, post_type='answer', id=post_id)
-            else:
-                post = get_object_or_404(models.Post, post_type='question', id=id)
-            #
-            ######################
-
+            post.thread.update_summary_html()
+        elif vote_type in const.VOTE_TYPES_VOTING:
             response_data = process_vote(
-                                        user = request.user,
-                                        vote_direction = vote_direction,
-                                        post = post
-                                    )
+                user=user, vote_direction=vote_args[1], post=post)
 
-            ####################################################################
-            if vote_type in ('1', '2'): # up/down-vote question
-                post.thread.update_summary_html() # regenerate question/thread summary html
-            ####################################################################
-
-        elif vote_type in ['7', '8']:
-            #flag question or answer
-            if vote_type == '7':
-                post = get_object_or_404(models.Post, post_type='question', id=id)
-            if vote_type == '8':
-                id = request.POST.get('postId')
-                post = get_object_or_404(models.Post, post_type='answer', id=id)
-
-            request.user.flag_post(post)
-
+            if vote_args[0] == 'question':
+                post.thread.update_summary_html()
+        elif vote_type in const.VOTE_TYPES_REPORTING:
+            user.flag_post(post, cancel=vote_args[1], cancel_all=vote_args[2])
             response_data['count'] = post.offensive_flag_count
-            response_data['success'] = 1
-
-        elif vote_type in ['7.5', '8.5']:
-            #flag question or answer
-            if vote_type == '7.5':
-                post = get_object_or_404(models.Post, post_type='question', id=id)
-            if vote_type == '8.5':
-                id = request.POST.get('postId')
-                post = get_object_or_404(models.Post, post_type='answer', id=id)
-
-            request.user.flag_post(post, cancel = True)
-
-            response_data['count'] = post.offensive_flag_count
-            response_data['success'] = 1
-
-        elif vote_type in ['7.6', '8.6']:
-            #flag question or answer
-            if vote_type == '7.6':
-                post = get_object_or_404(models.Post, id=id)
-            if vote_type == '8.6':
-                id = request.POST.get('postId')
-                post = get_object_or_404(models.Post, id=id)
-
-            request.user.flag_post(post, cancel_all = True)
-
-            response_data['count'] = post.offensive_flag_count
-            response_data['success'] = 1
-
-        elif vote_type in ['9', '10']:
-            #delete question or answer
-            post = get_object_or_404(models.Post, post_type='question', id=id)
-            if vote_type == '10':
-                id = request.POST.get('postId')
-                post = get_object_or_404(models.Post, post_type='answer', id=id)
-
-            if post.deleted == True:
-                request.user.restore_post(post = post)
+        elif vote_type in const.VOTE_TYPES_REMOVAL:
+            if post.deleted:
+                user.restore_post(post=post)
             else:
-                request.user.delete_post(post = post)
-
-        elif request.is_ajax() and request.method == 'POST':
-
-            if not request.user.is_authenticated():
-                response_data['allowed'] = 0
-                response_data['success'] = 0
-
-            question = get_object_or_404(models.Post, post_type='question', id=id)
-            vote_type = request.POST.get('type')
-
-            if vote_type == '4':
-                #follow question
-                fave = request.user.toggle_favorite_question(question)
-                response_data['count'] = models.FavoriteQuestion.objects.filter(thread = question.thread).count()
-                if fave == False:
-                    response_data['status'] = 1
-
-            elif vote_type == '11':#subscribe q updates
-                #todo: this branch is not used anymore
-                #now we just follow question, we don't have the
-                #separate "subscribe" function
-                user = request.user
-                if user.is_authenticated():
-                    if user not in question.thread.followed_by.all():
-                        user.follow_question(question)
-                        if askbot_settings.EMAIL_VALIDATION == True \
-                            and user.email_isvalid == False:
-
-                            response_data['message'] = \
-                                    _(
-                                        'Your subscription is saved, but email address '
-                                        '%(email)s needs to be validated, please see '
-                                        '<a href="%(details_url)s">more details here</a>'
-                                    ) % {'email':user.email,'details_url':reverse('faq') + '#validate'}
-
-                    subscribed = user.subscribe_for_followed_question_alerts()
-                    if subscribed:
-                        if 'message' in response_data:
-                            response_data['message'] += '<br/>'
-                        response_data['message'] += _('email update frequency has been set to daily')
-                    #response_data['status'] = 1
-                    #responst_data['allowed'] = 1
-                else:
-                    pass
-                    #response_data['status'] = 0
-                    #response_data['allowed'] = 0
-            elif vote_type == '12':#unsubscribe q updates
-                user = request.user
-                if user.is_authenticated():
-                    user.unfollow_question(question)
+                user.delete_post(post=post)
         else:
-            response_data['success'] = 0
-            response_data['message'] = u'Request mode is not supported. Please try again.'
+            raise ValueError('unexpected vote type %d' % vote_type)
+            
 
-        if vote_type not in (1, 2, 4, 5, 6, 11, 12):
-            #favorite or subscribe/unsubscribe
-            #upvote or downvote question or answer - those
-            #are handled within user.upvote and user.downvote
-            post = models.Post.objects.get(id = id)
+        if vote_type in const.VOTE_TYPES_INVALIDATE_CACHE:
             post.thread.invalidate_cached_data()
-
-        data = simplejson.dumps(response_data)
-
     except Exception, e:
         response_data['message'] = unicode(e)
         response_data['success'] = 0
-        data = simplejson.dumps(response_data)
-    return HttpResponse(data, mimetype="application/json")
+
+    data = simplejson.dumps(response_data)
+    return HttpResponse(data, content_type='application/json')
 
 #internally grouped views - used by the tagging system
-@csrf.csrf_exempt
+@csrf.csrf_protect
+@decorators.ajax_only
 @decorators.post_only
-@decorators.ajax_login_required
 def mark_tag(request, **kwargs):#tagging system
+
+    if request.user.is_anonymous():
+        msg = _('anonymous users cannot %(perform_action)s') % \
+            {'perform_action': _('mark or unmark tags')}
+        raise exceptions.PermissionDenied(msg + ' ' + get_login_link())
+
     action = kwargs['action']
     post_data = simplejson.loads(request.raw_post_data)
     raw_tagnames = post_data['tagnames']
@@ -455,11 +231,11 @@ def mark_tag(request, **kwargs):#tagging system
         user = request.user
 
     cleaned_tagnames, cleaned_wildcards = user.mark_tags(
-                                                         tagnames,
-                                                         wildcards,
-                                                         reason = reason,
-                                                         action = action
-                                                        )
+                                                     tagnames,
+                                                     wildcards,
+                                                     reason=reason,
+                                                     action=action
+                                                )
 
     #lastly - calculate tag usage counts
     tag_usage_counts = dict()
@@ -472,12 +248,13 @@ def mark_tag(request, **kwargs):#tagging system
     for name in wildcards:
         if name in cleaned_wildcards:
             tag_usage_counts[name] = models.Tag.objects.filter(
-                                        name__startswith = name[:-1]
+                                        name__startswith = name[:-1],
+                                        language_code=translation.get_language()
                                     ).count()
         else:
             tag_usage_counts[name] = 0
 
-    return HttpResponse(simplejson.dumps(tag_usage_counts), mimetype="application/json")
+    return tag_usage_counts
 
 #@decorators.ajax_only
 @decorators.get_only
@@ -511,7 +288,7 @@ def get_thread_shared_users(request):
         'users_count': users.count(),
         'success': True
     })
-    return HttpResponse(re_data, mimetype='application/json')
+    return HttpResponse(re_data, content_type='application/json')
 
 @decorators.get_only
 def get_thread_shared_groups(request):
@@ -527,7 +304,7 @@ def get_thread_shared_groups(request):
         'groups_count': groups.count(),
         'success': True
     })
-    return HttpResponse(re_data, mimetype='application/json')
+    return HttpResponse(re_data, content_type='application/json')
 
 @decorators.ajax_only
 def get_html_template(request):
@@ -549,8 +326,9 @@ def get_tag_list(request):
     function
     """
     tags = models.Tag.objects.filter(
-                        deleted = False,
-                        status = models.Tag.STATUS_ACCEPTED
+                        deleted=False,
+                        status=models.Tag.STATUS_ACCEPTED,
+                        language_code=translation.get_language()
                     )
 
     tag_names = tags.values_list(
@@ -567,7 +345,7 @@ def load_object_description(request):
     text = getattr(obj.description, 'text', '').strip()
     return HttpResponse(text, mimetype = 'text/plain')
 
-@csrf.csrf_exempt
+@csrf.csrf_protect
 @decorators.ajax_only
 @decorators.post_only
 @decorators.admins_only
@@ -583,7 +361,7 @@ def save_object_description(request):
         request.user.post_object_description(obj, body_text=text)
     return {'html': obj.description.html}
 
-@csrf.csrf_exempt
+@csrf.csrf_protect
 @decorators.ajax_only
 @decorators.post_only
 def rename_tag(request):
@@ -607,7 +385,7 @@ def rename_tag(request):
     )
     category_tree.save_data(tree)
 
-@csrf.csrf_exempt
+@csrf.csrf_protect
 @decorators.ajax_only
 @decorators.post_only
 def delete_tag(request):
@@ -632,7 +410,7 @@ def delete_tag(request):
         raise exceptions.PermissionDenied(_('Sorry, could not delete tag'))
     return {'tree_data': tree}
 
-@csrf.csrf_exempt
+@csrf.csrf_protect
 @decorators.ajax_only
 @decorators.post_only
 def add_tag_category(request):
@@ -737,12 +515,14 @@ def create_bulk_tag_subscription(request):
             tag_names = form.cleaned_data['tags'].split(' ')
             user_list = form.cleaned_data.get('users')
             group_list = form.cleaned_data.get('groups')
+            lang = translation.get_language()
 
             bulk_subscription = models.BulkTagSubscription.objects.create(
                                                             tag_names=tag_names,
                                                             tag_author=request.user,
                                                             user_list=user_list,
-                                                            group_list=group_list
+                                                            group_list=group_list,
+                                                            language_code=lang
                                                         )
 
             return HttpResponseRedirect(reverse('list_bulk_tag_subscription'))
@@ -772,12 +552,20 @@ def edit_bulk_tag_subscription(request, pk):
                 group_ids = [user.id for user in form.cleaned_data['groups']]
                 bulk_subscription.groups.add(*group_ids)
 
-            tags, new_tag_names = get_tags_by_names(form.cleaned_data['tags'].split(' '))
+            lang = translation.get_language()
+
+            tags, new_tag_names = get_tags_by_names(
+                                        form.cleaned_data['tags'].split(' '),
+                                        language_code=lang
+                                    )
             tag_id_list = [tag.id for tag in tags]
 
             for new_tag_name in new_tag_names:
-                new_tag = models.Tag.objects.create(name=new_tag_name,
-                                             created_by=request.user)
+                new_tag = models.Tag.objects.create(
+                                        name=new_tag_name,
+                                        created_by=request.user,
+                                        language_code=lang
+                                    )
                 tag_id_list.append(new_tag.id)
 
             bulk_subscription.tags.add(*tag_id_list)
@@ -803,6 +591,23 @@ def edit_bulk_tag_subscription(request, pk):
                    })
 
     return render(request, 'tags/form_bulk_tag_subscription.html', data)
+
+@csrf.csrf_protect
+@decorators.ajax_only
+@decorators.post_only
+def toggle_follow_question(request):
+    result = dict()
+
+    if request.user.is_anonymous():
+        msg = _('anonymous users cannot %(perform_action)s') % \
+            {'perform_action': askbot_settings.WORDS_FOLLOW_QUESTIONS}
+        raise exceptions.PermissionDenied(msg + ' ' + get_login_link())
+    else:
+        q_id = request.POST['question_id']
+        question = get_object_or_404(models.Post, id=q_id)
+        result['is_enabled'] = request.user.toggle_favorite_question(question)
+        result['num_followers'] = models.FavoriteQuestion.objects.filter(thread=question.thread).count()
+    return result
 
 @decorators.admins_only
 @decorators.post_only
@@ -853,7 +658,7 @@ def api_get_questions(request):
     return HttpResponse(json_data, mimetype = "application/json")
 
 
-@csrf.csrf_exempt
+@csrf.csrf_protect
 @decorators.post_only
 @decorators.ajax_login_required
 def set_tag_filter_strategy(request):
@@ -936,7 +741,7 @@ def reopen(request, id):#re-open question
         return HttpResponseRedirect(question.get_absolute_url())
 
 
-@csrf.csrf_exempt
+@csrf.csrf_protect
 @decorators.ajax_only
 def swap_question_with_answer(request):
     """receives two json parameters - answer id
@@ -955,7 +760,7 @@ def swap_question_with_answer(request):
             return {'question_url': new_question.get_absolute_url() }
     raise Http404
 
-@csrf.csrf_exempt
+@csrf.csrf_protect
 @decorators.ajax_only
 @decorators.post_only
 def upvote_comment(request):
@@ -967,16 +772,16 @@ def upvote_comment(request):
         cancel_vote = form.cleaned_data['cancel_vote']
         comment = get_object_or_404(models.Post, post_type='comment', id=comment_id)
         process_vote(
-            post = comment,
-            vote_direction = 'up',
-            user = request.user
+            post=comment,
+            vote_direction='up',
+            user=request.user
         )
     else:
         raise ValueError
     #FIXME: rename js
     return {'score': comment.points}
 
-@csrf.csrf_exempt
+@csrf.csrf_protect
 @decorators.ajax_only
 @decorators.post_only
 def delete_post(request):
@@ -999,7 +804,7 @@ def delete_post(request):
     return {'is_deleted': post.deleted}
 
 #askbot-user communication system
-@csrf.csrf_exempt
+@csrf.csrf_protect
 def read_message(request):#marks message a read
     if request.method == "POST":
         if request.POST.get('formdata') == 'required':
@@ -1009,7 +814,7 @@ def read_message(request):#marks message a read
     return HttpResponse('')
 
 
-@csrf.csrf_exempt
+@csrf.csrf_protect
 @decorators.ajax_only
 @decorators.post_only
 @decorators.admins_only
@@ -1058,6 +863,7 @@ def edit_group_membership(request):
         raise exceptions.PermissionDenied()
 
 
+#todo - enable csrf protection for this function
 @csrf.csrf_exempt
 @decorators.ajax_only
 @decorators.post_only
@@ -1074,7 +880,7 @@ def save_group_logo_url(request):
     else:
         raise ValueError('invalid data found when saving group logo')
 
-@csrf.csrf_exempt
+@csrf.csrf_protect
 @decorators.ajax_only
 @decorators.post_only
 @decorators.admins_only
@@ -1093,7 +899,7 @@ def add_group(request):
                              url = url )
         return response_dict
 
-@csrf.csrf_exempt
+@csrf.csrf_protect
 @decorators.ajax_only
 @decorators.post_only
 @decorators.admins_only
@@ -1104,7 +910,7 @@ def delete_group_logo(request):
     group.save()
 
 
-@csrf.csrf_exempt
+@csrf.csrf_protect
 @decorators.ajax_only
 @decorators.post_only
 @decorators.admins_only
@@ -1114,7 +920,7 @@ def delete_post_reject_reason(request):
     reason.delete()
 
 
-@csrf.csrf_exempt
+@csrf.csrf_protect
 @decorators.ajax_only
 @decorators.post_only
 @decorators.admins_only
@@ -1135,7 +941,7 @@ def toggle_group_profile_property(request):
     return {'is_enabled': new_value}
 
 
-@csrf.csrf_exempt
+@csrf.csrf_protect
 @decorators.ajax_only
 @decorators.post_only
 @decorators.admins_only
@@ -1147,7 +953,7 @@ def set_group_openness(request):
     group.save()
 
 
-@csrf.csrf_exempt
+@csrf.csrf_protect
 @decorators.ajax_only
 @decorators.admins_only
 def edit_object_property_text(request):
@@ -1174,7 +980,7 @@ def edit_object_property_text(request):
         raise exceptions.PermissionDenied()
 
 
-@csrf.csrf_exempt
+@csrf.csrf_protect
 @decorators.ajax_only
 @decorators.post_only
 def join_or_leave_group(request):
@@ -1198,13 +1004,13 @@ def join_or_leave_group(request):
         membership = request.user.join_group(group)
         new_level = membership.get_level_display()
     else:
-        membership.delete()
+        request.user.leave_group(group)
         new_level = Membership.get_level_value_display(Membership.NONE)
 
     return {'membership_level': new_level}
 
 
-@csrf.csrf_exempt
+@csrf.csrf_protect
 @decorators.ajax_only
 @decorators.post_only
 @decorators.admins_only
@@ -1235,7 +1041,7 @@ def save_post_reject_reason(request):
     else:
         raise Exception(forms.format_form_errors(form))
 
-@csrf.csrf_exempt
+@csrf.csrf_protect
 @decorators.ajax_only
 @decorators.post_only
 @decorators.admins_only
@@ -1250,13 +1056,21 @@ def moderate_suggested_tag(request):
         tag_id = form.cleaned_data['tag_id']
         thread_id = form.cleaned_data.get('thread_id', None)
 
+        lang = translation.get_language()
+
         try:
-            tag = models.Tag.objects.get(id=tag_id)#can tag not exist?
+            tag = models.Tag.objects.get(
+                                    id=tag_id,
+                                    language_code=lang
+                                )#can tag not exist?
         except models.Tag.DoesNotExist:
             return
 
         if thread_id:
-            threads = models.Thread.objects.filter(id=thread_id)
+            threads = models.Thread.objects.filter(
+                                            id=thread_id,
+                                            language_code=lang
+                                        )
         else:
             threads = tag.threads.none()
 
@@ -1285,13 +1099,18 @@ def moderate_suggested_tag(request):
         raise Exception(forms.format_form_errors(form))
 
 
-@csrf.csrf_exempt
+@csrf.csrf_protect
 @decorators.ajax_only
 @decorators.post_only
 def save_draft_question(request):
     """saves draft questions"""
-    #todo: allow drafts for anonymous users
-    if request.user.is_anonymous():
+    #todo: maybe allow drafts for anonymous users
+    if request.user.is_anonymous() \
+        or request.user.is_read_only() \
+        or askbot_settings.READ_ONLY_MODE_ENABLED \
+        or request.user.is_active == False \
+        or request.user.is_blocked() \
+        or request.user.is_suspended():
         return
 
     form = forms.DraftQuestionForm(request.POST)
@@ -1312,13 +1131,18 @@ def save_draft_question(request):
             draft.save()
 
 
-@csrf.csrf_exempt
+@csrf.csrf_protect
 @decorators.ajax_only
 @decorators.post_only
 def save_draft_answer(request):
     """saves draft answers"""
-    #todo: allow drafts for anonymous users
-    if request.user.is_anonymous():
+    #todo: maybe allow drafts for anonymous users
+    if request.user.is_anonymous() \
+        or request.user.is_read_only() \
+        or askbot_settings.READ_ONLY_MODE_ENABLED \
+        or request.user.is_active == False \
+        or request.user.is_blocked() \
+        or request.user.is_suspended():
         return
 
     form = forms.DraftAnswerForm(request.POST)
@@ -1513,9 +1337,9 @@ def get_editor(request):
         'scripts': parsed_scripts,
         'success': True
     }
-    return HttpResponse(simplejson.dumps(data), mimetype='application/json')
+    return HttpResponse(simplejson.dumps(data), content_type='application/json')
 
-@csrf.csrf_exempt
+@csrf.csrf_protect
 @decorators.ajax_only
 @decorators.post_only
 def publish_answer(request):
@@ -1545,3 +1369,78 @@ def publish_answer(request):
         #todo: notify enquirer by email about the post
     request.user.message_set.create(message=message)
     return {'redirect_url': answer.get_absolute_url()}
+
+@csrf.csrf_protect
+@decorators.ajax_only
+@decorators.post_only
+def merge_questions(request):
+    post_data = simplejson.loads(request.raw_post_data)
+    if request.user.is_anonymous():
+        denied_msg = _('Sorry, only thread moderators can use this function')
+        raise exceptions.PermissionDenied(denied_msg)
+
+    form_class = forms.GetDataForPostForm
+    from_form = form_class({'post_id': post_data['from_id']})
+    to_form = form_class({'post_id': post_data['to_id']})
+    if from_form.is_valid() and to_form.is_valid():
+        from_question = get_object_or_404(models.Post, id=from_form.cleaned_data['post_id'])
+        to_question = get_object_or_404(models.Post, id=to_form.cleaned_data['post_id'])
+        request.user.merge_duplicate_questions(from_question, to_question)
+
+
+@decorators.ajax_only
+@decorators.get_only
+def translate_url(request):
+    form = forms.TranslateUrlForm(request.GET)
+    match = None
+    if form.is_valid():
+        from django.core.urlresolvers import resolve, Resolver404, NoReverseMatch
+        try:
+            match = resolve(form.cleaned_data['url'])
+        except Resolver404:
+            pass
+
+    url = None
+    if match:
+        lang = form.cleaned_data['language']
+        site_lang = translation.get_language()
+        translation.activate(lang)
+
+        if match.url_name == 'questions' and None in match.kwargs.values():
+            url = models.get_feed_url(match.kwargs['feed'])
+        else:
+            try:
+                url = reverse(match.url_name, args=match.args, kwargs=match.kwargs)
+            except:
+                pass
+        translation.activate(site_lang)
+
+    return {'url': url}
+
+
+@csrf.csrf_protect
+@decorators.ajax_only
+@decorators.post_only
+def reorder_badges(request):
+    """places given badge to desired position"""
+    if request.user.is_anonymous() \
+        or not request.user.is_administrator_or_moderator():
+        raise exceptions.PermisionDenied()
+
+    form = forms.ReorderBadgesForm(request.POST)
+    if form.is_valid():
+        badge_id = form.cleaned_data['badge_id']
+        position = form.cleaned_data['position']
+        badge = models.BadgeData.objects.get(id=badge_id)
+        badges = list(models.BadgeData.objects.all())
+        badges = filter(lambda v: v.is_enabled(), badges)
+        badges.remove(badge)
+        badges.insert(position, badge)
+        pos = 0
+        for badge in badges:
+            badge.display_order = 10 * pos
+            badge.save()
+            pos += 1
+        return
+
+    raise exceptions.PermissionDenied()

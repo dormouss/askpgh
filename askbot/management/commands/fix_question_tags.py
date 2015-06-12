@@ -9,7 +9,7 @@ from askbot import models
 from askbot import forms
 from askbot.utils import console
 from askbot.utils.slug import slugify_camelcase
-from askbot.models import signals
+from askbot import signals
 from askbot.conf import settings as askbot_settings
 from askbot.management.commands.rename_tags import get_admin
 
@@ -28,9 +28,11 @@ def get_valid_tag_name(tag):
     return first_char_regex.sub('', name)
 
 class Command(NoArgsCommand):
-    def handle_noargs(self, **options):
+    def handle_noargs(self, *args, **options):
         signal_data = signals.pop_all_db_signal_receivers()
-        self.run_command()
+        languages = models.Tag.objects.values_list('language_code').distinct()
+        for lang in languages:
+            self.run_command(lang)
         signals.set_all_db_signal_receivers(signal_data)
 
     def retag_threads(self, from_tags, to_tag):
@@ -50,11 +52,13 @@ class Command(NoArgsCommand):
 
 
     @transaction.commit_manually
-    def run_command(self):
+    def run_command(self, lang):
         """method that runs the actual command"""
         #go through tags and find character case duplicates and eliminate them
-        translation.activate(django_settings.LANGUAGE_CODE)
-        tagnames = models.Tag.objects.values_list('name', flat = True)
+        translation.activate(lang)
+        tagnames = models.Tag.objects.filter(
+                                language_code=lang
+                            ).values_list('name', flat=True)
         self.admin = get_admin()
 
         #1) first we go through all tags and
@@ -63,7 +67,10 @@ class Command(NoArgsCommand):
 
         for name in tagnames:
             try:
-                tag = models.Tag.objects.get(name=name)
+                tag = models.Tag.objects.get(
+                                        name=name,
+                                        language_code=lang
+                                    )
             except models.Tag.DoesNotExist:
                 #tag with this name was already deleted,
                 #because it was an invalid duplicate version
@@ -89,7 +96,10 @@ class Command(NoArgsCommand):
             #then delete the current tag as no longer used
             if fixed_name != name:
                 try:
-                    duplicate_tag = models.Tag.objects.get(name=fixed_name)
+                    duplicate_tag = models.Tag.objects.get(
+                                                name=fixed_name,
+                                                language_code=lang
+                                            )
                 except models.Tag.DoesNotExist:
                     pass
                 self.retag_threads([tag], duplicate_tag)
@@ -102,7 +112,8 @@ class Command(NoArgsCommand):
             #from the case variants to the current tag and
             #delete the case variant tags
             dupes = models.Tag.objects.filter(
-                                name__iexact=fixed_name
+                                name__iexact=fixed_name,
+                                language_code=lang
                             ).exclude(pk=tag.id)
 
             dupes_count = dupes.count()
@@ -135,7 +146,8 @@ class Command(NoArgsCommand):
                 denorm_tag_set.update(norm_tag_set)
                 cleaned_tag_set = set(
                             models.Tag.objects.filter(
-                                name__in=denorm_tag_set
+                                name__in=denorm_tag_set,
+                                language_code=lang
                             ).values_list('name', flat=True)
                         )
                 self.admin.retag_question(

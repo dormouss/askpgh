@@ -12,7 +12,7 @@ from askbot import api
 from askbot import models
 from askbot import const
 from askbot.conf import settings as askbot_settings
-from askbot.skins.loaders import get_skin
+from askbot.search.state_manager import SearchState
 from askbot.utils import url_utils
 from askbot.utils.slug import slugify
 from askbot.utils.html import site_url
@@ -20,15 +20,15 @@ from askbot.utils.translation import get_language
 
 def application_settings(request):
     """The context processor function"""
-    if not request.path.startswith('/' + settings.ASKBOT_URL):
-        #todo: this is a really ugly hack, will only work
-        #when askbot is installed not at the home page.
-        #this will not work for the
-        #heavy modders of askbot, because their custom pages
-        #will not receive the askbot settings in the context
-        #to solve this properly we should probably explicitly
-        #add settings to the context per page
-        return {}
+    #if not request.path.startswith('/' + settings.ASKBOT_URL):
+    #    #todo: this is a really ugly hack, will only work
+    #    #when askbot is installed not at the home page.
+    #    #this will not work for the
+    #    #heavy modders of askbot, because their custom pages
+    #    #will not receive the askbot settings in the context
+    #    #to solve this properly we should probably explicitly
+    #    #add settings to the context per page
+    #    return {}
     my_settings = askbot_settings.as_dict()
     my_settings['LANGUAGE_CODE'] = getattr(request, 'LANGUAGE_CODE', settings.LANGUAGE_CODE)
     my_settings['MULTILINGUAL'] = getattr(settings, 'ASKBOT_MULTILINGUAL', False)
@@ -37,11 +37,7 @@ def application_settings(request):
             settings.ASKBOT_ALLOWED_UPLOAD_FILE_TYPES
     my_settings['ASKBOT_URL'] = settings.ASKBOT_URL
     my_settings['STATIC_URL'] = settings.STATIC_URL
-    my_settings['ASKBOT_CSS_DEVEL'] = getattr(
-                                        settings,
-                                        'ASKBOT_CSS_DEVEL',
-                                        False
-                                    )
+    my_settings['IP_MODERATION_ENABLED'] = getattr(settings, 'ASKBOT_IP_MODERATION_ENABLED', False)
     my_settings['USE_LOCAL_FONTS'] = getattr(
                                         settings,
                                         'ASKBOT_USE_LOCAL_FONTS',
@@ -74,13 +70,18 @@ def application_settings(request):
     else:   
         min_search_word_length = my_settings['MIN_SEARCH_WORD_LENGTH']
 
+    need_scope_links = askbot_settings.ALL_SCOPE_ENABLED or \
+                    askbot_settings.UNANSWERED_SCOPE_ENABLED or \
+                    (request.user.is_authenticated() and askbot_settings.FOLLOWED_SCOPE_ENABLED)
+
     context = {
         'base_url': site_url(''),
+        'empty_search_state': SearchState.get_empty(),
         'min_search_word_length': min_search_word_length,
         'current_language_code': current_language,
         'settings': my_settings,
-        'skin': get_skin(),
         'moderation_items': api.get_info_on_moderation_items(request.user),
+        'need_scope_links': need_scope_links,
         'noscript_url': const.DEPENDENCY_URLS['noscript'],
     }
 

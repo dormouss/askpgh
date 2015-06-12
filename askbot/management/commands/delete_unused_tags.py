@@ -6,7 +6,6 @@ from askbot.conf import settings as askbot_settings
 import sys
 
 class Command(NoArgsCommand):
-    @transaction.commit_manually
     def handle_noargs(self, **options):
         tags = models.Tag.objects.all()
         message = 'Searching for unused tags:'
@@ -15,9 +14,18 @@ class Command(NoArgsCommand):
         deleted_tags = list()
         for tag in ProgressBar(tags, total, message):
             if not tag.threads.exists():
-                deleted_tags.append(tag.name)
-                tag.delete()
-            transaction.commit()
+                #if any user subscribed for the tag and
+                #the user is not blocked, skip deleting the tag
+                marks = tag.user_selections.all()
+                do_delete = True
+                for mark in marks:
+                    if not mark.user.is_blocked():
+                        do_delete = False
+                        break
+
+                if do_delete:
+                    deleted_tags.append(tag.name)
+                    tag.delete()
 
         if deleted_tags:
             found_count = len(deleted_tags)

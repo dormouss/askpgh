@@ -1,7 +1,7 @@
 {% for top_answer in top_answers %}
 <div class="answer-summary">
     <a href="{{ top_answer.get_absolute_url() }}">
-        <span class="answer-votes {% if top_answer.accepted() %}answered-accepted{% endif %}">
+        <span class="answer-votes {% if top_answer.endorsed %}answered-accepted{% endif %}">
             {{ top_answer.score }}
         </span>
     </a>

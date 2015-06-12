@@ -2,19 +2,20 @@
 <!-- question.html -->
 {% block title %}{% spaceless %}{{ question.get_question_title()|escape }}{% endspaceless %}{% endblock %}
 {% block meta_description %}
-        <meta name="description" content="{{question.summary|striptags|escape}}" />
+    <meta name="description" content="{{ question.summary|striptags|escape }}" />
 {% endblock %}
 {% block keywords %}{{thread.tagname_meta_generator()}}{% endblock %}
 {% block forestyle %}
-    <link rel="canonical" href="{{ base_url }}{{question.get_absolute_url()}}" />
-    <link rel="stylesheet" type="text/css" href="{{'/js/wmd/wmd.css'|media}}" />
+    <link rel="canonical" href="{{ base_url }}{{ question.get_absolute_url() }}" />
+    <link rel="stylesheet" type="text/css" href="{{ '/wmd/wmd.css'|media }}" />
 {% endblock %}
 {% block forejs %}
     <script type="text/javascript">
         /*<![CDATA[*/
         //below is pure cross-browser javascript, no jQuery
-        askbot['data']['userIsThreadModerator'] = {% if user_is_thread_moderator %}true{% else %}false{% endif %};
+        askbot['data']['userIsThreadModerator'] = {{ user_is_thread_moderator|as_js_bool }};
         askbot['data']['oldestAnswerId'] = {% if oldest_answer_id %}{{ oldest_answer_id }}{% else %}-1{% endif %};
+        askbot['data']['threadIsClosed'] = {{ thread.closed|as_js_bool }};
         {% if settings.READ_ONLY_MODE_ENABLED %}
             askbot['settings']['readOnlyModeEnabled'] = true;
         {% endif %}
@@ -29,6 +30,17 @@
                 }
                 return false;
             }
+
+            var findClosestParentByClassName = function(node, className) {
+                if (hasClass(node, className)) {
+                    return node;
+                }
+                if (node.nodeName === 'BODY') {
+                    return false;
+                } else {
+                    return findClosestParentByClassName(node.parentNode, className);
+                }
+            };
 
             var findChildrenByClassName = function(node, className) {
                 var nodes = [];
@@ -77,6 +89,16 @@
             var postIsComment = function(postId) {
                 if (document.getElementById('comment-' + postId)) {
                     return true;
+                }
+                return false;
+            };
+
+            var postIsQuestion = function(postId) {
+                var content = document.getElementById('post-id-' + postId);
+                if (content) {
+                    if (findClosestParentByClassName(content, 'question')) {
+                        return true;
+                    }
                 }
                 return false;
             };
@@ -173,7 +195,9 @@
                     //hide publish/unpublish answer links
                     var answerId = 'post-' + postId + '-publish';
                     var pubBtn = document.getElementById(answerId);
-                    pubBtn.parentNode.removeChild(pubBtn);
+                    if (pubBtn) {
+                        removeNode(pubBtn);
+                    }
                 }
             }
 
@@ -198,9 +222,8 @@
                     }
                 }
             };
-                    
 
-            function render_post_controls(post_id){
+            function render_post_controls(post_id, is_wiki){
 
                 //in this case remove all post controls
                 if (askbot['settings']['readOnlyModeEnabled'] === true) {
@@ -208,19 +231,41 @@
                     return;
                 }
 
-                if (data['userIsAdminOrMod']){
+                var deleteBtn = document.getElementById('post-' + post_id + '-delete');
+                var controls = deleteBtn.parentNode;
+                var mergeBtn = findChildrenByClassName(controls, 'question-merge');
+                if (mergeBtn.length === 1 && data['userIsThreadModerator'] === false) {
+                    removeNode(mergeBtn[0]);
+                }
+
+                if (data['userIsAdminOrMod']) {
                     return;//all remaining functions stay on
                 }
+
+                {% if settings.COMMENTING_CLOSED_QUESTIONS_ENABLED == False %}
+                if (data['threadIsClosed']) {
+                    var buttons = findChildrenByClassName(document, 'js-open-editor-btn');
+                    for (var i = 0; i < buttons.length; i++) {
+                        removeNode(buttons[0]);
+                    }
+                }
+                {% endif %}
+
                 if (data['user_posts'] && post_id in data['user_posts']){
+                    if (postIsQuestion(post_id) && {{ answers|length }}) {
+                        if (data['userReputation'] < {{ settings.MIN_REP_TO_DELETE_OWN_QUESTIONS }}) {
+                            if (!data['userIsAdminOrMod']) {
+                                removeNode(deleteBtn);
+                            }
+                        }
+                    }
                     //todo: remove edit button from older comments
                     return;
                 }
-                var deleteBtn = document.getElementById('post-' + post_id + '-delete');
-                var controls = deleteBtn.parentNode;
+
                 if (//maybe remove "delete" button
-                    (data['userReputation'] < 
-                    {{settings.MIN_REP_TO_DELETE_OTHERS_COMMENTS}}) ||
-                    data['userIsReadOnly']
+                    (data['userReputation'] <
+                    {{settings.MIN_REP_TO_DELETE_OTHERS_COMMENTS}}) || data['userIsReadOnly']
                 ) {
                     removeNode(deleteBtn);
                 }
@@ -228,7 +273,9 @@
                 var canFlagPosts = data['userReputation'] >= {{ settings.MIN_REP_TO_FLAG_OFFENSIVE }};
                 var flags = findChildrenByClassName(controls, 'question-flag');
                 if (flags.length > 0 && !canFlagPosts) {
-                    removeNode(flags[0]);
+                    for (var i = 0; i < flags.length; i++) {
+                        removeNode(flags[i]);
+                    }
                 }
                 var closeBtn = findChildrenByClassName(controls, 'question-close');
                 if (
@@ -240,14 +287,15 @@
                 ) {
                     removeNode(closeBtn[0]);
                 }
-                var repLow = (data['userReputation'] < {{settings.MIN_REP_TO_EDIT_OTHERS_POSTS}});
+                var enoughRep = (data['userReputation'] >= {{settings.MIN_REP_TO_EDIT_OTHERS_POSTS}} ||
+                        (is_wiki && data['userReputation'] >= {{ settings.MIN_REP_TO_EDIT_WIKI }}));
                 if (//maybe remove "edit" button
-                    repLow || data['userIsReadOnly']//only authors edit comments
+                    !enoughRep || data['userIsReadOnly']//only authors edit comments
                 ){
-                    var edit_btn = document.getElementById(
-                        'post-' + post_id + '-edit'
-                    )
-                    edit_btn.parentNode.removeChild(edit_btn);
+                    var editBtns = findChildrenByClassName(controls, 'js-edit');
+                    if (editBtns.length) {
+                        removeNode(editBtns[0]);
+                    }
                 }
                 if (//maybe remove retag button
                     (data['userReputation'] <
@@ -259,15 +307,6 @@
                         retagBtn.parentNode.removeChild(retagBtn);
                     }
                 }
-            }
-            function render_add_comment_button(post_id, extra_comment_count){
-                if (extra_comment_count > 0){
-                    var text = "{% trans %}see more comments{% endtrans%}";
-                } else {
-                    var text = "{% trans %}add a comment{% endtrans %}";
-                }
-                var add_comment_btn = document.getElementById('add-comment-to-post-' + post_id);
-                add_comment_btn.innerHTML = text;
             }
 
             function render_add_answer_button(){
@@ -288,7 +327,7 @@
                 } else {
                     add_answer_btn.setAttribute(
                         'value',
-                        '{% trans %}Login/Signup to Post{% endtrans %}'
+                        '{{ gettext("Login/Signup to Post")|escapejs }}'
                     );
                 }
             }
@@ -310,11 +349,10 @@
                     }
                 }
             }
-            
+
             askbot['functions'] = askbot['functions'] || {};
             askbot['functions']['renderPostVoteButtons'] = render_vote_buttons;
             askbot['functions']['renderPostControls'] = render_post_controls;
-            askbot['functions']['renderAddCommentButton'] = render_add_comment_button;
             askbot['functions']['renderAddAnswerButton'] = render_add_answer_button;
             askbot['functions']['hideConvertLinks'] = hide_convert_links;
             askbot['functions']['hideConvertAnswerLinks'] = hide_convert_answer_links;
@@ -338,15 +376,17 @@
 {% block sidebar %}
     {% include "question/sidebar.html" %}
 {% endblock %}
+{% from "macros.html" import comment_widget, tag_widget %}
+{% block js_templates %}
+    {{ comment_widget(blank_comment) }}
+    {% include "editors/simple.html" %}
+    {{ tag_widget('none') }}
+{% endblock %}
 {% block endjs %}
+    {% spaceless %}
+    {% endspaceless %}
     <script type='text/javascript'>
         {# not compressable #}
-        {% if settings.ENABLE_MATHJAX or settings.MARKUP_CODE_FRIENDLY %}
-        var codeFriendlyMarkdown = true;
-        {% else %}
-        var codeFriendlyMarkdown = false;
-        {% endif %}
-        var maxCommentLength = {{settings.MAX_COMMENT_LENGTH}};
         askbot['urls']['postComments'] = '{% url post_comments %}';
         askbot['urls']['editComment'] = '{% url edit_comment %}';
         askbot['urls']['deleteComment'] = '{% url delete_comment %}';
@@ -361,17 +401,20 @@
         askbot['urls']['get_html_template'] = '{% url get_html_template %}';
         askbot['urls']['getGroupsList'] = '{% url get_groups_list %}';
         askbot['urls']['publishAnswer'] = '{% url publish_answer %}';
-        askbot['data']['userIsThreadModerator'] = {{ user_is_thread_moderator|as_js_bool }};
+        askbot['urls']['apiV1Questions'] = '{% url api_v1_questions %}';
+        askbot['urls']['mergeQuestions'] = '{% url merge_questions %}';
+        {# already added on top askbot['data']['userIsThreadModerator'] = {{ user_is_thread_moderator|as_js_bool }}; #}
         askbot['data']['questionAuthorId'] = {{ question.author_id }};
-        askbot['data']['threadIsClosed'] = {{ thread.closed|as_js_bool }};
         askbot['data']['answersSortTab'] = '{{ tab_id }}';
         askbot['data']['questionId'] = {{ question.id }};
         askbot['data']['threadSlug'] = '{{ thread.title|slugify }}';
         askbot['messages']['addComment'] = '{% trans %}add a comment{% endtrans %}';
         askbot['messages']['userNamePrompt'] = '{% trans %}User name:{% endtrans %}';
         askbot['messages']['userEmailPrompt'] = '{% trans %}Email address:{% endtrans %}';
+        askbot['messages']['mergeQuestions'] = '{{ settings.WORDS_MERGE_QUESTIONS }}';
+        askbot['messages']['enterDuplicateQuestionId'] = '{{ settings.WORDS_ENTER_DUPLICATE_QUESTION_ID }}';
         {% if settings.READ_ONLY_MODE_ENABLED %}
-            askbot['messages']['readOnlyMessage'] = '{{ settings.READ_ONLY_MESSAGE }}';
+            askbot['messages']['readOnlyMessage'] = "{{ settings.READ_ONLY_MESSAGE }}";
         {% endif %}
         askbot['settings']['saveCommentOnEnter'] = {{ settings.SAVE_COMMENT_ON_ENTER|as_js_bool }};
         askbot['settings']['tagSource'] = '{{ settings.TAG_SOURCE }}';
@@ -384,21 +427,4 @@
         {% include "meta/category_tree_js.html" %}
     {% endif %}
     {% include "question/custom_javascript.html" ignore missing %}
-    {#
-    <script type="text/javascript">
-        var messages = askbot['messages'];
-        messages['upvote_question'] = gettext(
-            'I like this question (click again to cancel)'
-        );
-        messages['upvote_answer'] = gettext(
-            'I like this answer (click again to cancel)'
-        );
-        messages['downvote_question'] = gettext(
-            "I don't like this question (click again to cancel)"
-        );
-        messages['downvote_answer'] = gettext(
-            "I don't like this answer (click again to cancel)"
-        );
-    </script>
-    #}
 {% endblock %}

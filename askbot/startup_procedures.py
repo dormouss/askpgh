@@ -14,7 +14,7 @@ import re
 import south
 import sys
 import urllib
-from django.db import transaction, connection
+from django.db import connection
 from django.conf import settings as django_settings
 from django.core.cache import cache
 from django.core.exceptions import ImproperlyConfigured
@@ -314,23 +314,6 @@ def test_compressor():
     """test settings for django compressor"""
     errors = list()
 
-    if getattr(django_settings, 'ASKBOT_CSS_DEVEL', False):
-        precompilers = getattr(django_settings, 'COMPRESS_PRECOMPILERS', None)
-        lessc_item = ('text/less', 'lessc {infile} {outfile}')
-        if precompilers is None:
-            errors.append(
-                'Please add to your settings.py file: \n'
-                'COMPRESS_PRECOMPILERS = (\n'
-                "    ('%s', '%s'),\n"
-                ')' % lessc_item
-            )
-        else:
-            if lessc_item not in precompilers:
-                errors.append(
-                    'Please add to the COMPRESS_PRECOMPILERS the following item:\n'
-                    "('%s', '%s')," % lessc_item
-                )
-
     js_filters = getattr(django_settings, 'COMPRESS_JS_FILTERS', [])
     if len(js_filters) > 0:
         errors.append(
@@ -617,12 +600,7 @@ def test_avatar():
     """if "avatar" is in the installed apps,
     checks that the module is actually installed"""
     if 'avatar' in django_settings.INSTALLED_APPS:
-        try_import('Image', 'PIL', short_message = True)
-        try_import(
-            'avatar',
-            '-e git+git://github.com/ericflo/django-avatar.git#egg=avatar',
-            short_message = True
-        )
+        try_import('avatar', 'django-avatar', short_message=True)
 
 def test_haystack():
     if 'haystack' in django_settings.INSTALLED_APPS:
@@ -793,6 +771,7 @@ def test_template_context_processors():
         'askbot.context.application_settings',
         'askbot.user_messages.context_processors.user_messages',
         'django.core.context_processors.csrf',
+        'askbot.deps.group_messaging.context.group_messaging_context',
     ]
     old_auth_processor = 'django.core.context_processors.auth'
     new_auth_processor = 'django.contrib.auth.context_processors.auth'
@@ -1054,7 +1033,6 @@ def run_startup_tests():
     if 'manage.py test' in ' '.join(sys.argv):
         test_settings_for_test_runner()
 
-#@transaction.commit_manually
 def run():
     try:
         if getattr(django_settings, 'ASKBOT_SELF_TEST', True):
@@ -1062,3 +1040,7 @@ def run():
     except AskbotConfigError, error:
         print error
         sys.exit(1)
+    # close DB and cache connections to prevent issues in prefork mode
+    connection.close()
+    if hasattr(cache, 'close'):
+        cache.close()

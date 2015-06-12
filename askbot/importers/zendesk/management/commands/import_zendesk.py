@@ -329,6 +329,8 @@ def post_answer(zendesk_post, question):
         if zendesk_post.is_informative:
             askbot_post.thread.accepted_answer_id = askbot_post.id
             askbot_post.thread.save()
+            askbot_post.endorsed = True
+            askbot_post.save()
         return askbot_post
     except askbot_exceptions.AnswerAlreadyGiven:
         answer = question.thread.get_answers_by_user(user=zendesk_post.get_author())[0]

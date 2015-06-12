@@ -22,7 +22,7 @@ settings.register(
     livesettings.StringValue(
         QA_SITE_SETTINGS,
         'APP_TITLE',
-        default=u'Askbot: Open Source Q&A Forum',
+        default=_('My site'),
         description=_('Site title for the Q&A forum')
     )
 )
@@ -112,7 +112,8 @@ settings.register(
     livesettings.StringValue(
         QA_SITE_SETTINGS,
         'GREETING_FOR_ANONYMOUS_USER',
-        default='First time here? Check out the FAQ!',
+        default=_('First time here? Check out the FAQ!'),
+        localized=True,
         hidden=False,
         description=_(
                 'Text shown in the greeting message '
@@ -121,44 +122,5 @@ settings.register(
         help_text=_(
                 'Use HTML to format the message '
             )
-    )
-)
-
-settings.register(
-    livesettings.StringValue(
-        QA_SITE_SETTINGS,
-        'FEEDBACK_SITE_URL',
-        description=_('Feedback site URL'),
-        help_text=_(
-                'If left empty, a simple internal feedback form '
-                'will be used instead'
-            )
-    )
-)
-
-def feedback_emails_callback(old_value, new_value):
-    """validates the fedback emails list"""
-    emails = []
-    for value in re.split('\s*,\s*', new_value):
-        if not value:
-            continue
-        try:
-            validate_email(value)
-            emails.append(value)
-        except ValidationError:
-            raise ValueError(
-                _("'%(value)s' is not a valid email") % {'value': value})
-    return ", ".join(emails)
-
-settings.register(
-    livesettings.StringValue(
-        QA_SITE_SETTINGS,
-        'FEEDBACK_EMAILS',
-        description=_('Internal feedback form email recipients'),
-        help_text=_(
-                'Comma separated list. If left empty, feedback mails are sent '
-                'to admins and moderators'
-            ),
-        update_callback=feedback_emails_callback
     )
 )

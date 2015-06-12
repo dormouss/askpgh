@@ -1,31 +1,42 @@
 from django.db.models import signals as django_signals
-from django.contrib.auth.models import User
 
-from haystack.signals import BaseSignalProcessor
+from haystack.signals import RealtimeSignalProcessor
 
-class AskbotRealtimeSignalProcessor(BaseSignalProcessor):
+from askbot import signals as askbot_signals
+
+
+class AskbotRealtimeSignalProcessor(RealtimeSignalProcessor):
     '''
     Based on haystack RealTimeSignalProcessor with some
     modifications to work with askbot soft-delete models
     '''
 
+    def handle_delete(self, sender, instance, **kwargs):
+        # avoid circular imports
+        from askbot.models import Post, Thread
+
+        if isinstance(instance, Post) and instance.thread_id:
+            # instance becomes the thread instance
+            # sender becomes the Thread class
+            # this is because we don't index Post instances, only Thread
+            # but still need to update/remove thread when post is removed.
+            instance, sender = (instance.thread, Thread)
+
+        super(AskbotRealtimeSignalProcessor, self).handle_delete(sender, instance, **kwargs)
+
     def setup(self):
-        django_signals.post_save.connect(self.handle_save)
-        django_signals.post_delete.connect(self.handle_delete)
+        super(AskbotRealtimeSignalProcessor, self).setup()
 
         try:
-            from askbot.models import signals as askbot_signals
-            askbot_signals.delete_question_or_answer.connect(self.handle_delete)
+            askbot_signals.after_post_removed.connect(self.handle_delete)
         except ImportError:
             pass
 
     def teardown(self):
-        django_signals.post_save.disconnect(self.handle_save)
-        django_signals.post_delete.disconnect(self.handle_delete)
+        super(AskbotRealtimeSignalProcessor, self).setup()
         #askbot signals
         try:
-            from askbot.models import signals as askbot_signals
-            askbot_signals.delete_question_or_answer.disconnect(self.handle_delete)
+            askbot_signals.after_post_removed.disconnect(self.handle_delete)
         except ImportError:
             pass
 
@@ -40,8 +51,7 @@ try:
             django_signals.post_save.connect(self.enqueue_save)
             django_signals.post_delete.connect(self.enqueue_delete)
             try:
-                from askbot.models import signals as askbot_signals
-                askbot_signals.delete_question_or_answer.connect(self.enqueue_delete)
+                askbot_signals.after_post_removed.connect(self.enqueue_delete)
             except ImportError:
                 pass
 
@@ -51,8 +61,7 @@ try:
             django_signals.post_delete.disconnect(self.enqueue_delete)
 
             try:
-                from askbot.models import signals as askbot_signals
-                askbot_signals.delete_question_or_answer.disconnect(self.enqueue_delete)
+                askbot_signals.after_post_removed.disconnect(self.enqueue_delete)
             except ImportError:
                 pass
 

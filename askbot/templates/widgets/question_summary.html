@@ -7,7 +7,7 @@
              {% else -%}
                 some-views
              {%- endif -%}">
-             <span class="item-count">{{thread.view_count|humanize_counter}}</span>
+             <span class="item-count">{{ thread.view_count|humanize_counter }}</span>
             <div>
             {% trans cnt=thread.view_count %}view{% pluralize %}views{% endtrans %}
             </div>
@@ -41,10 +41,11 @@
             {% trans cnt=question.score %}vote{% pluralize %}votes{% endtrans %}
             </div>
         </div>
-        <div style="clear:both"></div>
+        <div class="clearfix"></div>
         <div class="userinfo">
             {{ timeago(thread.last_activity_at) }}
-            {% if question.is_anonymous %}{# todo: here we need to look at the anonymity of the last edit instead #}
+            {% set latest_revision = thread.get_latest_revision(user=visitor) %}
+            {% if latest_revision and latest_revision.is_anonymous %}
                 <span class="anonymous">{{ thread.last_activity_by.get_anonymous_name() }}</span>
             {% else %}
                 <a href="{% url user_profile thread.last_activity_by.id, thread.last_activity_by.username|slugify %}">{{thread.last_activity_by.username|escape}}</a> {{ user_country_flag(thread.last_activity_by) }}

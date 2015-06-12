@@ -1,10 +1,10 @@
-<table class="threads-list {% if sender_id == -2 %}trash{% endif %}"
+<table class="js-thread-list {% if sender_id == -2 %}trash{% endif %}"
     data-sender-id="{{ sender_id }}"
 >
 {% if threads %}
     {% for thread in threads %}
         {% set thread_data = threads_data[thread.id] %}
-        <tr class="thread-heading {{ thread_data['status'] }}"
+        <tr class="js-thread-heading {{ thread_data['status'] }}"
             data-thread-id="{{ thread.id }}"
         >
             <td class="delete-or-restore"></td>

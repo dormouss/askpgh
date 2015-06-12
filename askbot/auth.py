@@ -11,7 +11,7 @@ import datetime
 from django.db import transaction
 from askbot.models import Repute
 #from askbot.models import Answer
-from askbot.models import signals
+from askbot import signals
 from askbot.conf import settings as askbot_settings
 
 ###########################################
@@ -99,6 +99,12 @@ def onFlaggedItem(post, user, timestamp=None):
         #post.deleted_by = Admin
         post.save()
 
+        signals.after_post_removed.send(
+            sender=post.__class__,
+            instance=post,
+            deleted_by=user,
+        )
+
 
 @transaction.commit_on_success
 def onUnFlaggedItem(post, user, timestamp=None):
@@ -111,7 +117,7 @@ def onUnFlaggedItem(post, user, timestamp=None):
     flagged_user = post.author
 
     flagged_user.receive_reputation(
-        askbot_settings.REP_LOSS_FOR_RECEIVING_FLAG
+        -askbot_settings.REP_LOSS_FOR_RECEIVING_FLAG #negative of a negative
     )
     flagged_user.save()
 
@@ -181,9 +187,20 @@ def onUnFlaggedItem(post, user, timestamp=None):
         post.deleted = False
         post.save()
 
+        signals.after_post_restored.send(
+            sender=post.__class__,
+            instance=post,
+            restored_by=user,
+        )
+
+
 @transaction.commit_on_success
 def onAnswerAccept(answer, user, timestamp=None):
-    answer.thread.set_accepted_answer(answer=answer, timestamp=timestamp)
+    answer.thread.set_accepted_answer(
+                            answer=answer,
+                            actor=user,
+                            timestamp=timestamp
+                        )
     question = answer.thread._question_post()
 
     if answer.author != user:
@@ -199,7 +216,7 @@ def onAnswerAccept(answer, user, timestamp=None):
                    reputation=answer.author.reputation)
         reputation.save()
 
-    if answer.author == question.author and user == question.author:
+    if answer.author_id == question.author_id and user.pk == question.author_id:
         #a plug to prevent reputation gaming by posting a question
         #then answering and accepting as best all by the same person
         return
@@ -218,7 +235,15 @@ def onAnswerAccept(answer, user, timestamp=None):
 def onAnswerAcceptCanceled(answer, user, timestamp=None):
     if timestamp is None:
         timestamp = datetime.datetime.now()
-    answer.thread.set_accepted_answer(answer=None, timestamp=None)
+
+    answer.endorsed = False
+    answer.endorsed_by = None
+    answer.endorsed_at = None
+    answer.save()
+
+    answer.thread.accepted_answer = None
+    answer.thread.save()
+
     question = answer.thread._question_post()
 
     if user != answer.author:
@@ -237,7 +262,7 @@ def onAnswerAcceptCanceled(answer, user, timestamp=None):
         )
         reputation.save()
 
-    if answer.author == question.author and user == question.author:
+    if answer.author_id == question.author_id and user.pk == question.author_id:
         #a symmettric measure for the reputation gaming plug
         #as in the onAnswerAccept function
         #here it protects the user from uwanted reputation loss

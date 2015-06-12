@@ -1,5 +1,5 @@
 {% import "macros.html" as macros %}
-{% extends 'two_column_body.html' %}
+{% extends "two_column_body.html" %}
 {% block title %}{% trans %}Groups{% endtrans %}{% endblock %}
 {% block content %}
     <div id="content-header">
@@ -8,11 +8,11 @@
             <div class="tabBar">
                 <div class="tabsC">
                     <a id="all-groups" class="first{% if tab_name=="all-groups" %} on{% endif %}"
-                        title="{% trans %}All groups{% endtrans %}" 
+                        title="{% trans %}All groups{% endtrans %}"
                         href="{% url groups %}?sort=all-groups"
                     ><span>{% trans %}all groups{% endtrans %}</span></a>
-                    <a id="my-groups" {% if tab_name=="my-groups" %}class="on"{% endif %} 
-                        title="{% trans %}My groups{% endtrans %}" 
+                    <a id="my-groups" {% if tab_name=="my-groups" %}class="on"{% endif %}
+                        title="{% trans %}My groups{% endtrans %}"
                         href="{% url groups %}?sort=my-groups"
                     ><span>{% trans %}my groups{% endtrans %}</span></a>
                 </div>
@@ -44,8 +44,11 @@
     </table>
 {% endblock %}
 {% block endjs %}
-    <script type='text/javascript' src='{{"/js/jquery.validate.min.js"|media}}'></script>
-    <script src='{{"/js/post.js"|media}}' type='text/javascript'></script>
+    {% compress js %}
+    <script type="text/javascript" src="{{ '/jslib/jquery.validate.min.js'|media }}"></script>
+    <script type="text/javascript" src="{{ '/jslib/prettify.js'|media }}"></script>
+    <script type="text/javascript" src="{{ '/js/post.js'|media }}"></script>
+    {% endcompress %}
     {% if request.user.is_authenticated() %}
     <script type="text/javascript">
         askbot['urls']['join_or_leave_group'] = '{% url join_or_leave_group %}';

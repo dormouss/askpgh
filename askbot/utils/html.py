@@ -7,9 +7,10 @@ import re
 import htmlentitydefs
 from urlparse import urlparse
 from django.core.urlresolvers import reverse
+from django.template.loader import get_template
 from django.utils.html import strip_tags as strip_all_tags
 from django.utils.html import urlize
-from askbot.conf import settings as askbot_settings
+from django.utils.translation import ugettext as _
 
 class HTMLSanitizerMixin(sanitizer.HTMLSanitizerMixin):
     acceptable_elements = ('a', 'abbr', 'acronym', 'address', 'b', 'big',
@@ -56,7 +57,7 @@ def absolutize_urls(html):
     url_re3 = re.compile(r'(?P<prefix><a[^<]+href=)"(?P<url>/[^"]+)"', re.I)
     url_re4 = re.compile(r"(?P<prefix><a[^<]+href=)'(?P<url>/[^']+)'", re.I)
     base_url = site_url('')#important to have this without the slash
-    img_replacement = '\g<prefix>"%s/\g<url>" style="max-width:500px;"' % base_url
+    img_replacement = '\g<prefix>"%s/\g<url>"' % base_url
     replacement = '\g<prefix>"%s\g<url>"' % base_url
     html = url_re1.sub(img_replacement, html)
     html = url_re2.sub(img_replacement, html)
@@ -189,7 +190,9 @@ def strip_tags(html, tags=None):
     return unicode(soup.find('body').renderContents(), 'utf-8')
 
 def sanitize_html(html):
-    """Sanitizes an HTML fragment."""
+    """Sanitizes an HTML fragment.
+    from forbidden markup
+    """
     p = html5lib.HTMLParser(tokenizer=HTMLSanitizer,
                             tree=treebuilders.getTreeBuilder("dom"))
     dom_tree = p.parseFragment(html)
@@ -200,18 +203,88 @@ def sanitize_html(html):
     output_generator = s.serialize(stream)
     return u''.join(output_generator)
 
+def has_moderated_tags(html):
+    """True, if html contains tags subject to moderation
+    (images and/or links)"""
+    from askbot.conf import settings
+    soup = BeautifulSoup(html, 'html5lib')
+    if settings.MODERATE_LINKS:
+        links = soup.find_all('a')
+        if links:
+            return True
+
+    if settings.MODERATE_IMAGES:
+        images = soup.find_all('img')
+        if images:
+            return True
+
+    return False
+
+def moderate_tags(html):
+    """replaces instances of <a> and <img>
+    with "item in moderation" alerts
+    """
+    from askbot.conf import settings
+    soup = BeautifulSoup(html, 'html5lib')
+    replaced = False
+    if settings.MODERATE_LINKS:
+        links = soup.find_all('a')
+        if links:
+            template = get_template('widgets/moderated_link.html')
+            aviso = BeautifulSoup(template.render(), 'html5lib').find('body')
+            map(lambda v: v.replaceWith(aviso), links)
+            replaced = True
+
+    if settings.MODERATE_IMAGES:
+        images = soup.find_all('img')
+        if images:
+            template = get_template('widgets/moderated_link.html')
+            aviso = BeautifulSoup(template.render(), 'html5lib').find('body')
+            map(lambda v: v.replaceWith(aviso), images)
+            replaced = True
+
+    if replaced:
+        return unicode(soup.find('body').renderContents(), 'utf-8')
+
+    return html
+
 def site_url(url):
     from askbot.conf import settings
     base_url = urlparse(settings.APP_URL)
     return base_url.scheme + '://' + base_url.netloc + url
 
-def site_link(url_name, title):
+def internal_link(url_name, title, kwargs=None, anchor=None, absolute=False):
     """returns html for the link to the given url
     todo: may be improved to process url parameters, keyword
     and other arguments
+
+    link url does not have domain
     """
-    url = site_url(reverse(url_name))
+    url = reverse(url_name, kwargs=kwargs)
+    if anchor:
+        url += '#' + anchor
+    if absolute:
+        url = site_url(url)
     return '<a href="%s">%s</a>' % (url, title)
+
+def site_link(url_name, title, kwargs=None, anchor=None):
+    """same as internal_link, but with the site domain"""
+    return internal_link(
+        url_name, title, kwargs=kwargs, anchor=anchor, absolute=True
+    )
+
+def get_login_link(text=None):
+    from askbot.utils.url_utils import get_login_url
+    text = text or _('please login')
+    return '<a href="%s">%s</a>' % (get_login_url(), text)
+
+def get_visible_text(html):
+    """returns visible text from html
+    http://stackoverflow.com/a/19760007/110274
+    """
+    soup = BeautifulSoup(html, 'html5lib')
+    [s.extract() for s in soup(['style', 'script', '[document]', 'head', 'title'])]
+    return soup.get_text()
 
 def unescape(text):
     """source: http://effbot.org/zone/re-sub.htm#unescape-html

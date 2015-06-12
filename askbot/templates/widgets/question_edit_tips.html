@@ -3,7 +3,7 @@
     {{ settings.QUESTION_INSTRUCTIONS|safe }}
 {% else %}
     <ul>
-        {% if not request.user.is_authenticated() %}
+        {% if request.user.is_anonymous() and not settings.ALLOW_ASK_UNREGISTERED %}
         <li class="warning">{% trans %}since you are not logged in right now, you will be asked to sign in or register after making your post{% endtrans %}</li>
         {% else %}
             {% if settings.EMAIL_VALIDATION %}

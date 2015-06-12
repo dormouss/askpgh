@@ -43,6 +43,12 @@ The bulk of the management commands fall into this group and will probably be th
 |                                 | The command does not create associations with               |
 |                                 | any of the external login providers.                        |
 +---------------------------------+-------------------------------------------------------------+
+| `askbot_clear_moderation_queue` | Clear all items from the moderation queue                   |
++---------------------------------+-------------------------------------------------------------+
+| `askbot_award_badges`           | Awards badges to users (only some badges are supported)     |
++---------------------------------+-------------------------------------------------------------+
+| `askbot_recount_badges`         | Fixes badge award counts, use when disabling/enabling badges|
++---------------------------------+-------------------------------------------------------------+
 | `merge_users <from_id>          | Merges user accounts and all related data from one user     |
 | <to_id>`                        | to another, the "from user" account is deleted.             |
 +---------------------------------+-------------------------------------------------------------+
@@ -74,6 +80,8 @@ The bulk of the management commands fall into this group and will probably be th
 |                                 | up to one http request per user to gravatar.com.            |
 |                                 | This data is used to display preferentially real faces      |
 |                                 | on the main page.                                           |
++---------------------------------+-------------------------------------------------------------+
+| `askbot_rebuild_avatars`        | Rebuilds avatar urls and creates avatar thumbnails          |
 +---------------------------------+-------------------------------------------------------------+
 | `build_thread_summary_cache`    | Rebuilds cache for the question summary snippet.            |
 +---------------------------------+-------------------------------------------------------------+
@@ -161,6 +169,9 @@ Any configurable options, related to these commands are accessible via "Email" s
 |                                     | This command may be disabled from the "email" section       |
 |                                     | of the live settings, as well as the appropriate delay      |
 |                                     | parameters may be set.                                      |
++-------------------------------------+-------------------------------------------------------------+
+| `askbot_send_moderation_alerts`     | Sends alerts to moderators when there are items on the      |
+|                                     | queue.                                                      |
 +-------------------------------------+-------------------------------------------------------------+
 
 Data repair commands

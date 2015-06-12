@@ -77,3 +77,12 @@ settings.register(
         help_text=_('Please use space to separate the entries, do not use the @ symbol!')
     )
 )
+
+settings.register(
+    livesettings.BooleanValue(
+        ACCESS_CONTROL,
+        'ADMIN_INBOX_ACCESS_ENABLED',
+        default=False,
+        description=_("Allow moderators to access other's messages"),
+    )
+)

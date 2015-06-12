@@ -4,7 +4,7 @@
 <!-- signin.html -->
 {% block title %}{% spaceless %}{% trans %}User login{% endtrans %}{% endspaceless %}{% endblock %}
 {% block forestyle %}
-    <link rel="stylesheet" type="text/css" media="screen" href="{{"/jquery-openid/openid.css"|media}}"/>
+    <link rel="stylesheet" type="text/css" media="screen" href="{{ "/style/openid.css"|media }}"/>
 {% endblock %}
 {% block forejs %}
     {% include "meta/bottom_scripts.html" %}
@@ -14,7 +14,7 @@
 {% if have_buttons or view_subtype == 'email_sent' %}
     <h1 class="section-title">{{page_title}}</h1>
 {% endif %}
-    <p id='login-intro'>
+    <p class='js-login-intro'>
     {% if view_subtype == 'default' and have_buttons %}
         {% trans %}Choose your favorite service below to sign in using secure OpenID or similar technology. Your external service password always stays confidential and you don't have to rememeber or create another one.{% endtrans %}
     {% elif view_subtype == 'add_openid' and have_buttons %}
@@ -36,7 +36,7 @@
     {% if openid_error_message %}
         <p class="warning">{{ openid_error_message }}</p>
     {% endif %}
-    {% if view_subtype != 'email_sent' and view_subtype != 'bad_key' %}
+    {% if view_subtype != 'email_sent' %}
     <form id="signin-form" method="post" action="{% url widget_signin %}">{% csrf_token %}
         {# in this branch - the real signin view we display the login icons
             here we hide the local login button only if admin
@@ -45,7 +45,7 @@
         #}
         {{ login_form.login_provider_name }}
         {{ login_form.next }}
-        {{ 
+        {{
             login_macros.provider_buttons(
                 login_form = login_form,
                 major_login_providers = major_login_providers,
@@ -57,7 +57,7 @@
             )
         }}
           {% if use_password_login == True %}
-        <fieldset 
+        <fieldset
             id="password-fs"
             {% if user.is_anonymous() %}
                 {% if not login_form.username.errors and not login_form.password_login_failed %}
@@ -92,7 +92,7 @@
                 {% endif %}
                 <table class="login">
                     <tr>
-                        <td><label for="id_username">{% trans %}Login or email{% endtrans %}</label></td>
+                        <td><label for="id_username">{% trans %}Username or email{% endtrans %}</label></td>
                         <td>{{login_form.username}}</td>
                     </tr>
                     <tr>
@@ -138,7 +138,7 @@
         {% endif %}
     </form>
     {% if user.is_authenticated() and existing_login_methods and settings.ALLOW_ADD_REMOVE_LOGIN_METHODS %}
-    <div 
+    <div
         id='existing-login-methods'
         {% if login_form.password_change_failed %}
             style="display:none";
@@ -151,7 +151,6 @@
             <tr>
                 <th>{% trans %}provider{% endtrans %}</th>
                 <th>{% trans %}last used{% endtrans %}</th>
-                <th>{% trans %}delete, if you like{% endtrans %}</th>
             </tr>
             {% for login_method in existing_login_methods %}
             <tr class="ab-provider-row">
@@ -176,36 +175,15 @@
     </div>
     {% endif %}
     {% endif %}
-    {% if view_subtype != 'email_sent' or view_subtype == 'bad_key' %}
+    {% if view_subtype != 'email_sent' %}
         {% if user.is_anonymous() and settings.ALLOW_ACCOUNT_RECOVERY_BY_EMAIL %}
         <form id="account-recovery-form" action="{% url user_account_recover %}" method="post">{% csrf_token %}
-            {% if view_subtype != 'bad_key' %}
-                <h2 id='account-recovery-heading'>{% trans %}Still have trouble signing in?{% endtrans %}</h2>
+            <h2 id='account-recovery-heading'>{% trans %}Having trouble signing in?{% endtrans %}</h2>
+            {% if account_recovery_form.email.errors %}
+            <p class="error">{{ account_recovery_form.email.errors[0] }}</p>
             {% endif %}
-            <p class="hint">
-                <span class="text">
-                {% if view_subtype == 'bad_key' %}
-                    {% trans %}Enter your email address below and obtain a new key{% endtrans %}
-                {% else %}
-                    {% trans %}Enter your email address below to recover your account{% endtrans %}
-                {% endif %}
-                </span>
-                <span style="display:none" class="link"> - <a href="#">{% trans %}recover your account via email{% endtrans %}</a></span>
-            </p>
-            <fieldset id='email-input-fs'>
-                {% if account_recovery_form.email.errors %}
-                <p class="error">{{account_recovery_form.email.errors[0]}}</p>
-                {% endif %}
-                {{ account_recovery_form.email }}
-                <input
-                    type="submit"
-                    {% if view_subtype == 'bad_key' %}
-                    value="{% trans %}Send a new recovery key{% endtrans %}"
-                    {% else %}
-                    value="{% trans %}Recover your account via email{% endtrans %}"
-                    {% endif %}
-                />
-            </fieldset>
+            <input id="id_email" name="email" type="text" placeholder="{% trans %}Enter your email{% endtrans %}">
+            <input type="submit" value="{% trans %}Recover account{% endtrans %}" />
         </form>
         {% endif %}
     {% endif %}

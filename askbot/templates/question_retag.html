@@ -18,8 +18,8 @@
         </div>
     </div>
     <div class="error" ></div>
-    <input type="submit" value="{% trans %}Retag{% endtrans %}" class="submit" />&nbsp;
-    <input type="button" value="{% trans %}Cancel{% endtrans %}" class="submit" onclick="history.back(-1);" />
+    <input type="submit" value="{% trans %}Retag{% endtrans %}"/>&nbsp;
+    <input type="button" value="{% trans %}Cancel{% endtrans %}" onclick="history.back(-1);" />
 </form>
 {% endblock %}
 
@@ -38,15 +38,17 @@
 </div>
 {% endblock %}
 {% block endjs %}
-    <script type='text/javascript' src='{{"/js/editor.js"|media}}'></script>
-    <script type='text/javascript' src='{{"/js/post.js"|media}}'></script>
-    <script type='text/javascript' src='{{"/js/jquery.validate.min.js"|media}}'></script>
+    {% compress js %}
+    <script type="text/javascript" src="{{ '/jslib/editor.js'|media }}"></script>
+    <script type="text/javascript" src="{{ '/jslib/prettify.js'|media }}"></script>
+    <script type="text/javascript" src="{{ '/js/post.js'|media }}"></script>
+    <script type="text/javascript" src="{{ '/jslib/jquery.validate.min.js'|media }}"></script>
+    {% endcompress %}
     <script type="text/javascript">
-        $().ready(function(){
-            $("#nav_questions").attr('className',"on");
+        $(document).ready(function(){
             {% import "macros.html" as macros %}
             {{ macros.tag_autocomplete_js(id = '#id_tags') }}
-            $("#fmretag").validate({
+            $('fmretag').validate({
                rules: {
                    tags: {
                        required: true,
@@ -55,11 +57,11 @@
                },
                messages: {
                    tags: {
-                           required: "{% trans %}tags are required{% endtrans %}",
-                           maxlength: "{% trans %}up to 5 tags, less than 20 characters each{% endtrans %}"
+                           required: '{% trans %}tags are required{% endtrans %}',
+                           maxlength: '{% trans %}up to 5 tags, less than 20 characters each{% endtrans %}'
                        }
                    }
-                   
+
                });
                lanai.highlightSyntax();
            });

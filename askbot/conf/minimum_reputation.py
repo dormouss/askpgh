@@ -17,6 +17,16 @@ MIN_REP = livesettings.ConfigurationGroup(
 settings.register(
     livesettings.IntegerValue(
         MIN_REP,
+        'MIN_REP_TO_AUTOAPPROVE_USER',
+        default=10,
+        description=_('Become approved'),
+        help_text=_('Approved users bypass moderation and skip recaptcha')
+    )
+)
+
+settings.register(
+    livesettings.IntegerValue(
+        MIN_REP,
         'MIN_REP_TO_VOTE_UP',
         default=5,
         description=_('Upvote')
@@ -95,6 +105,15 @@ settings.register(
         'MIN_REP_TO_DELETE_OTHERS_POSTS',
         default=500,
         description=_('Delete questions and answers posted by others')
+    )
+)
+
+settings.register(
+    livesettings.IntegerValue(
+        MIN_REP,
+        'MIN_REP_TO_DELETE_OWN_QUESTIONS',
+        default=1,
+        description=_('Delete own questions')
     )
 )
 

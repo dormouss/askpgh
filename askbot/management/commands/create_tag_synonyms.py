@@ -4,6 +4,7 @@ all corresponding questions are retagged
 
 import sys
 from optparse import make_option
+from django.conf import settings as django_settings
 from django.core import management
 from django.core.management.base import BaseCommand, CommandError
 from askbot import models
@@ -47,6 +48,13 @@ remove source_tag"""
             default = None,
             help = 'id of the user who will be marked as a performer of this operation'
         ),
+        make_option('--lang',
+            action='store',
+            type='str',
+            dest='lang',
+            default=django_settings.LANGUAGE_CODE,
+            help='language code of the tag, e.g. "en"'
+        )
     )
 
     def handle(self, *args, **options):
@@ -75,7 +83,7 @@ remove source_tag"""
         is_source_tag_created = False
         
         try:
-            source_tag = models.Tag.objects.get(name=source_tag_name)
+            source_tag = models.Tag.objects.get(name=source_tag_name, language_code=options['lang'])
         except models.Tag.DoesNotExist:
             if not options.get('is_force', False):
                 prompt = """source tag %s doesn't exist, are you sure you want to create a TagSynonym
@@ -84,16 +92,21 @@ remove source_tag"""
                 if choice == 'no':
                     print 'Cancled'
                     sys.exit()
-            source_tag = models.Tag.objects.create(name=source_tag_name,
-                                                   created_by=admin
-                                                   )
+            source_tag = models.Tag.objects.create(
+                                            name=source_tag_name,
+                                            created_by=admin,
+                                            language_code=options['lang']
+                                        )
             is_source_tag_created = True
 
 
         # test if target_tag is actually synonym for yet another tag
         # when user asked tag2->tag3, we already had tag3->tag4.
         try:
-            tag_synonym_tmp = models.TagSynonym.objects.get(source_tag_name = target_tag_name)
+            tag_synonym_tmp = models.TagSynonym.objects.get(
+                                                source_tag_name=target_tag_name,
+                                                language_code=options['lang']
+                                            )
             if not options.get('is_force', False):
                 prompt = """There exists a TagSynonym %s ==> %s,
     hence we will create a tag synonym %s ==> %s instead. Proceed?""" % (tag_synonym_tmp.source_tag_name, tag_synonym_tmp.target_tag_name,
@@ -108,27 +121,34 @@ remove source_tag"""
             pass
         
         try: 
-            models.Tag.objects.get(name=target_tag_name)
+            models.Tag.objects.get(name=target_tag_name, language_code=options['lang'])
         except models.Tag.DoesNotExist:
             # we are creating a target tag, let's copy source tag's info
             # used_count are updated later
-            models.Tag.objects.create(name=target_tag_name,
-                                      created_by = admin,
-                                      status = source_tag.status,
-                                      tag_wiki = source_tag.tag_wiki
-                                      )
+            models.Tag.objects.create(
+                              name=target_tag_name,
+                              created_by = admin,
+                              status = source_tag.status,
+                              tag_wiki = source_tag.tag_wiki,
+                              language_code=options['lang']
+                            )
 
-        tag_synonym_tmp, created = models.TagSynonym.objects.get_or_create(source_tag_name = source_tag_name,
-                                                                           target_tag_name = target_tag_name,
-                                                                           owned_by = admin
-                                                                           )
+        tag_synonym_tmp, created = models.TagSynonym.objects.get_or_create(
+                                                                   source_tag_name=source_tag_name,
+                                                                   target_tag_name=target_tag_name,
+                                                                   owned_by=admin,
+                                                                   language_code=options['lang']
+                                                                )
         
         management.call_command('rename_tags', *args, **options)
 
         # When source_tag_name is a target_tag_name of already existing TagSynonym.
         # ie. if tag1->tag2 exists when user asked tag2->tag3
         # we are going to convert all tag1->tag2 to tag1->tag3 as well
-        existing_tag_synonyms = models.TagSynonym.objects.filter(target_tag_name=source_tag_name)
+        existing_tag_synonyms = models.TagSynonym.objects.filter(
+                                                target_tag_name=source_tag_name,
+                                                language_code=options['lang']
+                                            )
         for existing_tag_synonym in existing_tag_synonyms:
             new_options = options.copy()
             new_options['from'] = existing_tag_synonym.source_tag_name

@@ -4,7 +4,7 @@ This module records the site visits by the authenticated users
 Included here is the ViewLogMiddleware
 """
 import datetime
-from askbot.models import signals
+from askbot import signals
 
 
 class ViewLogMiddleware(object):

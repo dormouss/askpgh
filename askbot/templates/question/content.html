@@ -8,8 +8,18 @@
     {% include "question/answer_tab_bar.html" %}
 
     <div class="clean"></div>
-    {{ macros.paginator(paginator_context, anchor='#sort-top') }}
+    <div class="pager">
+        {{ macros.paginator(paginator_context, anchor='#sort-top') }}
+    </div>
     <div class="clean"></div>
+
+    {% if settings.SHOW_ACCEPTED_ANSWER_FIRST == False %}
+        {% if thread.has_accepted_answer() and answers and thread.accepted_answer != answers[0] %}
+            <a class="best-answer-link" href="{{ thread.accepted_answer.get_absolute_url() }}">
+                {% trans %}See the accepted answer{% endtrans %}
+            </a>
+        {% endif %}
+    {% endif %} 
 
     {% for answer in answers %}
         {% include "question/answer_card.html" %}
@@ -18,7 +28,9 @@
         {% endif %}
     {% endfor %}
 
-    {{ macros.paginator(paginator_context, anchor='#sort-top') }}
+    <div class="pager">
+        {{ macros.paginator(paginator_context, anchor='#sort-top') }}
+    </div>
     <div class="clean"></div>
 {% elif settings.QUESTION_PAGE_ALWAYS_SHOW_ANSWER_BANNER %}
     <div class="clearfix"></div>
@@ -43,10 +55,10 @@
         </div>
     </div>
 {% endif %}
-{% if question.closed == False and request.user == question.author %}{# this is outside the form on purpose #}
+{% if question.closed == False and request.user.pk == question.author_id %}{# this is outside the form on purpose #}
 <input 
   type="button"
-  class="submit after-editor answer-own-question"
+  class="submit answer-own-question"
   id="fmanswer_button"
   value="{{ settings.WORDS_ANSWER_YOUR_OWN_QUESTION|escape }}"
 />

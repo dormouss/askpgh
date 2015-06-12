@@ -10,6 +10,22 @@ from askbot.models.base import BaseQuerySetManager
 from askbot.conf import settings as askbot_settings
 from askbot import mail
 
+def emailed_content_needs_moderation(email):
+    """True, if we moderate content and if email address
+    is marked for moderation
+    todo: maybe this belongs to a separate "moderation" module
+    """
+    if askbot_settings.CONTENT_MODERATION_MODE == 'premoderation':
+        group_name = email.split('@')[0]
+        from askbot.models.user import Group
+        try:
+            group = Group.objects.get(name=group_name, deleted=False)
+            return group.group.profile.moderate_email
+        except Group.DoesNotExist:
+            pass
+    return False
+
+
 class ReplyAddressManager(BaseQuerySetManager):
     """A manager for the :class:`ReplyAddress` model"""
 

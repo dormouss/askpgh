@@ -20,12 +20,17 @@
             {% if answer.id in published_answer_ids %}
                 <p><strong>{% trans %}This response is published{% endtrans %}</strong></p>
             {% endif %}
+            {% if answer.needs_moderation() %}
+                <p class="moderated">{% trans %}This post is awaiting moderation{% endtrans %}</p>
+            {% endif %}
             {{ answer.summary }}
         </div>
         <div class="answer-controls post-controls">
             {% include "question/answer_controls.html" %}
         </div>
-        {% include "question/answer_comments.html" %}
+        {% if settings.ANSWER_COMMENTS_ENABLED %}
+            {% include "question/answer_comments.html" %}
+        {% endif %}
     </div>
     <div class="clean"></div>
 </div>

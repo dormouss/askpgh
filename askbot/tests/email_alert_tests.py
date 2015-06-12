@@ -333,7 +333,7 @@ class EmailAlertTests(TestCase):
     @email_alert_test
     def test_answer_delete_comment(self):
         comment = self.proto_post_answer_comment()
-        comment.get_owner().delete_comment(comment = comment)
+        comment.author.delete_comment(comment = comment)
 
     @email_alert_test
     def test_question_edit(self):
@@ -401,7 +401,7 @@ class EmailAlertTests(TestCase):
         in the base class user does not receive a notification
         """
         comment = self.proto_question_comment()
-        comment.get_owner().delete_comment(comment)
+        comment.author.delete_comment(comment)
 
     def proto_test_q_ask(self):
         """base method for tests that
@@ -842,7 +842,7 @@ class TagFollowedInstantWholeForumEmailAlertTests(utils.AskbotTestCase):
         )
 
     @with_settings(SUBSCRIBED_TAG_SELECTOR_ENABLED=True)
-    def test_tag_based_subscription_on_new_question_works1(self):
+    def test_tag_based_subscription_on_new_question_works2(self):
         """someone subscribes for an pre-existing tag
         then another user asks a question with that tag
         and the subcriber receives an alert
@@ -1054,9 +1054,9 @@ class PostApprovalTests(utils.AskbotTestCase):
     def setUp(self):
         self.reply_by_email = askbot_settings.REPLY_BY_EMAIL
         askbot_settings.update('REPLY_BY_EMAIL', True)
-        self.enable_content_moderation = \
-            askbot_settings.ENABLE_CONTENT_MODERATION
-        askbot_settings.update('ENABLE_CONTENT_MODERATION', True)
+        self.content_moderation_mode = \
+            askbot_settings.CONTENT_MODERATION_MODE
+        askbot_settings.update('CONTENT_MODERATION_MODE', 'premoderation')
         self.self_notify_when = \
             askbot_settings.SELF_NOTIFY_EMAILED_POST_AUTHOR_WHEN
         when = const.FOR_FIRST_REVISION
@@ -1070,8 +1070,8 @@ class PostApprovalTests(utils.AskbotTestCase):
             'REPLY_BY_EMAIL', self.reply_by_email
         )
         askbot_settings.update(
-            'ENABLE_CONTENT_MODERATION',
-            self.enable_content_moderation
+            'CONTENT_MODERATION_MODE',
+            self.content_moderation_mode
         )
         askbot_settings.update(
             'SELF_NOTIFY_EMAILED_POST_AUTHOR_WHEN',
@@ -1079,8 +1079,8 @@ class PostApprovalTests(utils.AskbotTestCase):
         )
 
     def test_emailed_question_answerable_approval_notification(self):
-        self.u1 = self.create_user('user1', status = 'a')#regular user
-        question = self.post_question(user = self.u1, by_email = True)
+        self.u1 = self.create_user('user1', status='a')#watched user
+        question = self.post_question(user=self.u1, by_email=True)
         outbox = django.core.mail.outbox
         #here we should get just the notification of the post
         #being placed on the moderation queue
@@ -1088,7 +1088,7 @@ class PostApprovalTests(utils.AskbotTestCase):
         self.assertEquals(outbox[0].recipients(), [self.u1.email])
 
     def test_moderated_question_answerable_approval_notification(self):
-        u1 = self.create_user('user1', status = 'a')
+        u1 = self.create_user('user1', status = 'w')
         question = self.post_question(user = u1, by_email = True)
 
         self.assertEquals(question.approved, False)
@@ -1145,7 +1145,10 @@ class AbsolutizeUrlsInEmailsTests(utils.AskbotTestCase):
 
 class MailMessagesTests(utils.AskbotTestCase):
     def test_ask_for_signature(self):
-        from askbot.mail import messages
+        from askbot.mail.messages import AskForSignature
         user = self.create_user('user')
-        message = messages.ask_for_signature(user, footer_code = 'nothing')
+        message = AskForSignature({
+                            'user': user,
+                            'footer_code': 'nothing'
+                        }).render_body()
         self.assertTrue(user.username in message)
